@@ -1,4 +1,8 @@
 <?php
+// TEMP: surface errors while we finish first deploy (remove once page loads).
+ini_set('display_errors', '1');
+error_reporting(E_ALL);
+
 define('APP', 1);
 $configPath = __DIR__ . '/config/config.php';
 $cfg  = file_exists($configPath) ? require $configPath : null;
