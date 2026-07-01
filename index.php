@@ -28,14 +28,14 @@ $appName = $cfg['app_name'] ?? 'TradingAI168';
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Trading AI Horizon — Platform</title>
-<link rel="stylesheet" href="assets/css/app.css">
+<link rel="stylesheet" href="assets/css/app.css?v=4">
 </head>
 <body>
 <div class="bg"></div>
 <main class="hero">
   <div class="badge">PAPER TRADING · PERSONAL</div>
   <div class="brand">
-    <svg class="mark" viewBox="0 0 48 48" aria-hidden="true">
+    <svg class="mark" width="48" height="48" viewBox="0 0 48 48" aria-hidden="true">
       <defs><linearGradient id="hz" x1="0" y1="0" x2="1" y2="1">
         <stop offset="0" stop-color="#6366f1"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs>
       <rect x="3" y="3" width="42" height="42" rx="12" fill="none" stroke="url(#hz)" stroke-width="2"/>
