@@ -34,7 +34,8 @@ jobs:
           set net:max-retries 2;
           set net:timeout 15;
           open -u '$FTP_USERNAME','$FTP_PASSWORD' '$FTP_SERVER';
-          mirror --reverse --verbose --ignore-time --parallel=2 \
+          echo '--- landing directory: ---'; pwd; ls;
+          mirror --reverse --verbose --no-perms --ignore-time --overwrite \
                  --exclude 'config/config\.php' \
                  ./ ./;
           "
