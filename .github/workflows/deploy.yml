@@ -1,12 +1,13 @@
 name: Deploy dashboard to Hostinger (FTP)
 
-# Auto-deploys on every push to main — independent of Hostinger's built-in Git
-# slot (which is used by the main site). Only changed files are uploaded.
+# Auto-deploys on every push to main, independent of Hostinger's built-in Git slot.
+# Uses lftp (robust directory handling) instead of actions that trip over MKD/CWD
+# on Hostinger's FTP server.
 
 on:
   push:
     branches: [ main ]
-  workflow_dispatch:        # lets you trigger a deploy manually from the Actions tab
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -15,20 +16,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Deploy via FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server:   ${{ secrets.FTP_SERVER }}      # e.g. ftp.kaptainone.com  (from hPanel FTP Accounts)
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          # The FTP account is scoped to /public_html/tradingai168, so its home IS
-          # the subdomain's document root -> deploy to './'.
-          server-dir: ./
-          # Never touch the server's real secrets or CI metadata.
-          exclude: |
-            **/.git*
-            **/.git*/**
-            **/.github/**
-            config/config.php
-            .gitignore
-            README.md
+      - name: Strip non-deploy files
+        run: rm -rf .git .github .gitignore README.md   # never ship these
+
+      - name: Install lftp
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq lftp
+
+      - name: Deploy via lftp mirror
+        env:
+          FTP_SERVER:   ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: |
+          lftp -c "
+          set ftp:ssl-allow false;
+          set ftp:passive-mode true;
+          set net:max-retries 2;
+          set net:timeout 15;
+          open -u '$FTP_USERNAME','$FTP_PASSWORD' '$FTP_SERVER';
+          mirror --reverse --verbose --ignore-time --parallel=2 \
+                 --exclude 'config/config\.php' \
+                 ./ ./;
+          "
