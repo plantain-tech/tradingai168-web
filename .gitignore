@@ -1,0 +1,4 @@
+# Never commit real secrets
+config/config.php
+*.log
+.DS_Store

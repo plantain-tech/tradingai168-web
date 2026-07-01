@@ -1,0 +1,24 @@
+# TradingAI168 dashboard — Apache/LiteSpeed (Hostinger) config
+
+# Block direct web access to config and library folders (defense in depth;
+# they're also code-guarded with the APP constant).
+RedirectMatch 403 ^/config/
+RedirectMatch 403 ^/lib/
+RedirectMatch 403 (?i)\.(sql|md|sample\.php)$
+
+# No directory listings.
+Options -Indexes
+
+# Force HTTPS (Hostinger provisions the SSL cert for the subdomain).
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{HTTPS} off
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# Basic security headers.
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+</IfModule>
