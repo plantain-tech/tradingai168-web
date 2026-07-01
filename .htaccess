@@ -3,7 +3,7 @@
 # Block direct web access to config and library folders (defense in depth;
 # they're also code-guarded with the APP constant).
 RedirectMatch 403 ^/config/
-RedirectMatch 403 ^/lib/
+RedirectMatch 403 ^/inc/
 RedirectMatch 403 (?i)\.(sql|md|sample\.php)$
 
 # No directory listings.

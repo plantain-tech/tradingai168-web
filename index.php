@@ -2,7 +2,7 @@
 define('APP', 1);
 $configPath = __DIR__ . '/config/config.php';
 $cfg  = file_exists($configPath) ? require $configPath : null;
-require __DIR__ . '/lib/db.php';
+require __DIR__ . '/inc/db.php';
 
 $dbOk = false; $tableCount = 0; $status = 'not_configured'; $detail = '';
 if ($cfg) {

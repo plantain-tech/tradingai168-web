@@ -35,6 +35,7 @@ jobs:
           set net:timeout 15;
           open -u '$FTP_USERNAME','$FTP_PASSWORD' '$FTP_SERVER';
           echo '--- landing directory: ---'; pwd; ls;
+          rm -f default.php;
           mirror --reverse --verbose --no-perms --ignore-time --overwrite \
                  --exclude 'config/config\.php' \
                  ./ ./;
