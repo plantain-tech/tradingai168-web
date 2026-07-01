@@ -1,8 +1,4 @@
 <?php
-// TEMP: surface errors while we finish first deploy (remove once page loads).
-ini_set('display_errors', '1');
-error_reporting(E_ALL);
-
 define('APP', 1);
 $configPath = __DIR__ . '/config/config.php';
 $cfg  = file_exists($configPath) ? require $configPath : null;
@@ -31,14 +27,24 @@ $appName = $cfg['app_name'] ?? 'TradingAI168';
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title><?= htmlspecialchars($appName) ?> — Platform</title>
+<title>Trading AI Horizon — Platform</title>
 <link rel="stylesheet" href="assets/css/app.css">
 </head>
 <body>
 <div class="bg"></div>
 <main class="hero">
   <div class="badge">PAPER TRADING · PERSONAL</div>
-  <h1><?= htmlspecialchars($appName) ?><span class="dot">.</span></h1>
+  <div class="brand">
+    <svg class="mark" viewBox="0 0 48 48" aria-hidden="true">
+      <defs><linearGradient id="hz" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#6366f1"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs>
+      <rect x="3" y="3" width="42" height="42" rx="12" fill="none" stroke="url(#hz)" stroke-width="2"/>
+      <circle cx="24" cy="27" r="7" fill="url(#hz)" opacity="0.9"/>
+      <line x1="12" y1="33" x2="36" y2="33" stroke="#0b0f1a" stroke-width="3"/>
+      <line x1="12" y1="33" x2="36" y2="33" stroke="url(#hz)" stroke-width="1.5"/>
+    </svg>
+    <h1 class="wordmark"><span class="wm-top">TRADING&nbsp;AI</span><span class="wm-main">HORIZON</span></h1>
+  </div>
   <p class="tag">AI-assisted options platform — <em>you approve, it executes.</em></p>
 
   <section class="card">
