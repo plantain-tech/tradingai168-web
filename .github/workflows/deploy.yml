@@ -21,9 +21,9 @@ jobs:
           server:   ${{ secrets.FTP_SERVER }}      # e.g. ftp.kaptainone.com  (from hPanel FTP Accounts)
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          # Target = the subdomain's document root. Adjust if your FTP account's
-          # home already starts inside public_html (we'll confirm on first run).
-          server-dir: public_html/tradingai168/
+          # The FTP account is scoped to /public_html/tradingai168, so its home IS
+          # the subdomain's document root -> deploy to './'.
+          server-dir: ./
           # Never touch the server's real secrets or CI metadata.
           exclude: |
             **/.git*
