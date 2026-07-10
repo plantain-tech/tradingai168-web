@@ -5,9 +5,31 @@ if (!defined('APP')) { http_response_code(403); exit('Forbidden'); }
 
 require_once __DIR__ . '/db.php';
 
+function setup_error(string $why): void {
+    http_response_code(503);
+    echo "<!doctype html><meta charset='utf-8'><title>Setup needed</title>
+    <body style='font-family:system-ui;background:#0b0f1a;color:#e8ecf5;
+    display:grid;place-items:center;min-height:100vh;margin:0'>
+    <div style='max-width:520px;padding:28px;border:1px solid rgba(255,255,255,.12);
+    border-radius:14px;background:rgba(255,255,255,.04)'>
+    <h2 style='margin:0 0 10px'>One-time setup needed</h2>
+    <p style='color:#8b93a7;line-height:1.6'>" . htmlspecialchars($why) . "</p>
+    <p style='color:#8b93a7;line-height:1.6'>In Hostinger File Manager, copy
+    <code>config/config.sample.php</code> to <code>config/config.php</code> inside
+    this site's folder and fill in the MySQL credentials, then reload.</p></div>";
+    exit;
+}
+
 function cfg(): array {
     static $c = null;
-    if ($c === null) { $c = require __DIR__ . '/../config/config.php'; }
+    if ($c === null) {
+        $path = __DIR__ . '/../config/config.php';
+        if (!file_exists($path)) {
+            setup_error('config/config.php is missing on the server (it is '
+                        . 'deliberately never deployed by Git).');
+        }
+        $c = require $path;
+    }
     return $c;
 }
 
@@ -15,7 +37,10 @@ function db(): PDO {
     static $pdo = null;
     if ($pdo === null) {
         $pdo = db_connect(cfg());
-        if (!$pdo) { http_response_code(500); exit('Database unavailable'); }
+        if (!$pdo) {
+            setup_error('config/config.php exists but the database connection '
+                        . 'failed — check db_name / db_user / db_pass.');
+        }
         ensure_tables($pdo);
     }
     return $pdo;
