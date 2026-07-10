@@ -60,3 +60,39 @@ body{
   background:rgba(255,255,255,.03); border:1px solid var(--line);
   border-radius:10px; padding:10px 12px}
 .foot{margin-top:26px; font-size:12px; color:var(--muted); opacity:.8}
+
+/* ---- nav / pages ---- */
+.nav{display:flex; gap:18px; justify-content:center; margin-bottom:22px; font-size:13px}
+.nav a{color:var(--muted); text-decoration:none; padding:6px 2px; border-bottom:2px solid transparent}
+.nav a.on,.nav a:hover{color:var(--ink); border-bottom-color:var(--brand1)}
+.pagetitle{font-size:26px; font-weight:800; margin-bottom:16px;
+  background:linear-gradient(100deg,var(--brand1),var(--brand2));
+  -webkit-background-clip:text; background-clip:text; color:transparent}
+.muted{color:var(--muted); font-size:13px}
+
+/* ---- forms ---- */
+label{display:block; text-align:left; font-size:12px; color:var(--muted);
+  margin:12px 0 5px; letter-spacing:.04em}
+.in{width:100%; padding:11px 12px; border-radius:10px; font-size:14px;
+  background:rgba(255,255,255,.05); border:1px solid var(--line); color:var(--ink)}
+.in:focus{outline:none; border-color:var(--brand1);
+  box-shadow:0 0 0 3px rgba(99,102,241,.25)}
+select.in option{background:#12172a; color:var(--ink)}
+.btn{width:100%; margin-top:16px; padding:12px; border:none; border-radius:11px;
+  font-size:14px; font-weight:700; cursor:pointer; color:#fff;
+  background:linear-gradient(100deg,var(--brand1),var(--brand2));
+  transition:transform .12s, box-shadow .12s}
+.btn:hover{transform:translateY(-1px); box-shadow:0 8px 24px rgba(99,102,241,.35)}
+.btn.ghost{background:transparent; border:1px solid var(--line); color:var(--muted)}
+.card h2{font-size:15px; font-weight:600; margin-bottom:6px}
+.card + .card{margin-top:18px}
+.grid2{display:grid; grid-template-columns:1fr 1fr; gap:0 16px}
+.grid2 .full{grid-column:1 / -1}
+@media (max-width:520px){.grid2{grid-template-columns:1fr}}
+.alert-ok,.alert-bad{border-radius:10px; padding:10px 12px; font-size:13px;
+  margin-bottom:14px; text-align:left}
+.alert-ok{background:rgba(52,211,153,.12); border:1px solid rgba(52,211,153,.4); color:var(--ok)}
+.alert-bad{background:rgba(248,113,113,.12); border:1px solid rgba(248,113,113,.4); color:var(--bad)}
+.tokenbox{display:block; word-break:break-all; text-align:left; font-size:12.5px;
+  background:rgba(255,255,255,.05); border:1px dashed var(--line);
+  border-radius:10px; padding:10px 12px; color:var(--brand2)}

@@ -1,5 +1,7 @@
 <?php
 define('APP', 1);
+require __DIR__ . '/inc/auth.php';
+require_login();
 $configPath = __DIR__ . '/config/config.php';
 $cfg  = file_exists($configPath) ? require $configPath : null;
 require __DIR__ . '/inc/db.php';
@@ -33,7 +35,11 @@ $appName = $cfg['app_name'] ?? 'TradingAI168';
 <body>
 <div class="bg"></div>
 <main class="hero">
-  <div class="badge">PAPER TRADING · PERSONAL</div>
+  <nav class="nav">
+    <a href="index.php" class="on">Dashboard</a><a href="settings.php">Settings</a>
+    <a href="logout.php">Log out</a>
+  </nav>
+  <div class="badge">PAPER-FIRST · PERSONAL</div>
   <div class="brand">
     <svg class="mark" width="48" height="48" viewBox="0 0 48 48" aria-hidden="true">
       <defs><linearGradient id="hz" x1="0" y1="0" x2="1" y2="1">
