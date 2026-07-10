@@ -1,79 +1,151 @@
 <?php
 define('APP', 1);
 require __DIR__ . '/inc/auth.php';
+require __DIR__ . '/inc/engine.php';
 require_login();
-$configPath = __DIR__ . '/config/config.php';
-$cfg  = file_exists($configPath) ? require $configPath : null;
-require_once __DIR__ . '/inc/db.php';   // auth.php already loads it; once-guard
 
-$dbOk = false; $tableCount = 0; $status = 'not_configured'; $detail = '';
-if ($cfg) {
-    $pdo = db_connect($cfg);
-    if ($pdo) {
-        $dbOk = true; $status = 'online';
-        try {
-            $tableCount = (int) $pdo->query(
-                "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()"
-            )->fetchColumn();
-        } catch (Throwable $e) { /* schema not imported yet */ }
-    } else {
-        $status = 'db_error'; $detail = 'Database connection failed — check config.php.';
+$settings = get_settings();
+$pick = doc_get('daily_pick');
+$candDoc = doc_get('candidates');
+$campaigns = docs_all('campaign_');
+$csrf = csrf_token();
+
+function spark(array $hist): string {                 // tiny SVG equity sparkline
+    $vals = array_map(fn($h) => (float) $h[1], $hist);
+    if (count($vals) < 2) { return ''; }
+    $w = 280; $h = 56; $mn = min($vals); $mx = max($vals);
+    $rng = ($mx - $mn) ?: 1;
+    $pts = [];
+    foreach ($vals as $i => $v) {
+        $x = round($i / (count($vals) - 1) * $w, 1);
+        $y = round($h - (($v - $mn) / $rng) * ($h - 6) - 3, 1);
+        $pts[] = "$x,$y";
     }
-} else {
-    $detail = 'No config.php yet — copy config.sample.php and add your DB details.';
+    $line = implode(' ', $pts);
+    $up = end($vals) >= $vals[0] ? '#34d399' : '#f87171';
+    return "<svg class='spark' viewBox='0 0 $w $h' preserveAspectRatio='none'>
+            <polyline points='$line' fill='none' stroke='$up' stroke-width='2'/></svg>";
 }
-$appName = $cfg['app_name'] ?? 'TradingAI168';
 ?>
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Trading AI Horizon — Platform</title>
-<link rel="stylesheet" href="assets/css/app.css?v=4">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trading AI Horizon — Dashboard</title>
+<link rel="stylesheet" href="assets/css/app.css?v=6">
 </head>
 <body>
 <div class="bg"></div>
-<main class="hero">
+<main class="hero wide">
   <nav class="nav">
     <a href="index.php" class="on">Dashboard</a><a href="settings.php">Settings</a>
     <a href="logout.php">Log out</a>
   </nav>
-  <div class="badge">PAPER-FIRST · PERSONAL</div>
-  <div class="brand">
-    <svg class="mark" width="48" height="48" viewBox="0 0 48 48" aria-hidden="true">
-      <defs><linearGradient id="hz" x1="0" y1="0" x2="1" y2="1">
-        <stop offset="0" stop-color="#6366f1"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs>
-      <rect x="3" y="3" width="42" height="42" rx="12" fill="none" stroke="url(#hz)" stroke-width="2"/>
-      <circle cx="24" cy="27" r="7" fill="url(#hz)" opacity="0.9"/>
-      <line x1="12" y1="33" x2="36" y2="33" stroke="#0b0f1a" stroke-width="3"/>
-      <line x1="12" y1="33" x2="36" y2="33" stroke="url(#hz)" stroke-width="1.5"/>
-    </svg>
-    <h1 class="wordmark"><span class="wm-top">TRADING&nbsp;AI</span><span class="wm-main">HORIZON</span></h1>
-  </div>
-  <p class="tag">AI-assisted options platform — <em>you approve, it executes.</em></p>
 
-  <section class="card">
-    <div class="card-head">
-      <span class="pulse <?= $dbOk ? 'ok' : ($status==='db_error' ? 'bad' : 'wait') ?>"></span>
-      <h2>System Status</h2>
+  <?php if ($candDoc && !empty($candDoc['data'])): ?>
+  <div class="ticker"><div class="ticker-track">
+    <?php foreach (array_slice($candDoc['data'], 0, 19) as $c): ?>
+      <span class="tk"><b><?= htmlspecialchars($c['ticker']) ?></b>
+        $<?= number_format((float) $c['price'], 2) ?>
+        <em class="ok">+<?= round($c['avg_slope'] * 100) ?>%/yr</em></span>
+    <?php endforeach; ?>
+  </div></div>
+  <?php endif; ?>
+
+  <div class="badge">MOMENTUM · <?= count($campaigns) ? 'CAMPAIGN LIVE' : 'NO OPEN CAMPAIGN' ?></div>
+  <h1 class="pagetitle" style="font-size:32px">Dashboard</h1>
+
+  <?php if (!$campaigns && !$pick): ?>
+    <section class="card"><h2>Waiting for engine data</h2>
+      <p class="muted">Run a pick or a tick on your PC and it appears here:</p>
+      <p class="muted"><code>python -X utf8 scripts/pick_stock.py --no-trends --push</code><br>
+      <code>python runner/momentum_loop.py --ticker TGT</code></p></section>
+  <?php endif; ?>
+
+  <?php foreach ($campaigns as $k => $c): $d = $c['data'];
+        $pnlClass = ($d['pnl'] ?? 0) >= 0 ? 'ok' : 'bad'; ?>
+  <section class="card camp">
+    <div class="camp-head">
+      <h2><?= htmlspecialchars($d['ticker']) ?> campaign
+          <span class="muted" style="font-weight:400">· <?= htmlspecialchars($d['status']) ?></span></h2>
+      <span class="muted" style="font-size:11px">updated <?= htmlspecialchars($c['updated_at']) ?></span>
     </div>
-    <ul class="status">
-      <li><span>Web app</span><b class="ok">online ✓</b></li>
-      <li><span>Database</span>
-        <b class="<?= $dbOk ? 'ok' : ($status==='db_error' ? 'bad' : 'wait') ?>">
-          <?= $dbOk ? 'connected ✓' : ($status==='db_error' ? 'error ✕' : 'not configured') ?>
-        </b></li>
-      <li><span>Schema tables</span>
-        <b class="<?= $tableCount >= 6 ? 'ok' : 'wait' ?>">
-          <?= $dbOk ? ($tableCount . ' found' . ($tableCount>=6?' ✓':' — import schema.sql')) : '—' ?>
-        </b></li>
-      <li><span>Trading engine</span><b class="wait">connect in Sprint&nbsp;1</b></li>
-    </ul>
-    <?php if ($detail): ?><p class="hint"><?= htmlspecialchars($detail) ?></p><?php endif; ?>
+    <div class="tiles">
+      <div class="tile"><span>P&amp;L</span><b class="<?= $pnlClass ?>">$<?= number_format($d['pnl'] ?? 0, 0) ?></b></div>
+      <div class="tile"><span>Shares</span><b><?= $d['qty'] ?? 0 ?> / <?= $settings['target_shares'] ?></b></div>
+      <div class="tile"><span>Avg cost</span><b>$<?= number_format($d['avg_cost'] ?? 0, 2) ?></b></div>
+      <div class="tile"><span>Price</span><b>$<?= number_format($d['price'] ?? 0, 2) ?></b></div>
+    </div>
+    <?= spark($d['history'] ?? []) ?>
+    <div class="limits muted">
+      profit alert +<?= round($settings['profit_alert_pct'] * 100) ?>% ·
+      loss −$<?= number_format($settings['loss_alert_usd']) ?> ·
+      urgent −$<?= number_format($settings['loss_urgent_usd']) ?> ·
+      budget $<?= number_format($settings['budget_usd']) ?>
+    </div>
+    <?php if (!empty($d['alerts'])): ?>
+      <div class="alerts">
+      <?php foreach (array_slice(array_reverse($d['alerts']), 0, 3) as $a): ?>
+        <p class="alert-<?= $a['level'] === 'WIN' ? 'ok' : 'bad' ?>">
+          [<?= htmlspecialchars($a['level']) ?>] <?= htmlspecialchars($a['msg']) ?>
+          <span class="muted">(<?= htmlspecialchars($a['date']) ?>)</span></p>
+      <?php endforeach; ?>
+      </div>
+    <?php endif; ?>
+    <?php if (($d['qty'] ?? 0) > 0 && ($d['status'] ?? '') === 'ACTIVE'): ?>
+      <button class="btn danger oneclick" data-action="APPROVE_SELL_ALL"
+              data-ticker="<?= htmlspecialchars($d['ticker']) ?>">
+        One-click SELL ALL <?= $d['qty'] ?> sh (queued for engine, at best ask)</button>
+    <?php endif; ?>
   </section>
+  <?php endforeach; ?>
 
-  <footer class="foot">Sprint&nbsp;1 · built one honest day at a time · not financial advice</footer>
+  <?php if ($pick): $p = $pick['data']; ?>
+  <section class="card">
+    <div class="camp-head">
+      <h2>AI pick of the day: <span class="grad-t"><?= htmlspecialchars($p['chosen']) ?></span></h2>
+      <span class="muted" style="font-size:11px"><?= htmlspecialchars($p['source'] ?? '') ?>
+        · <?= htmlspecialchars($pick['updated_at']) ?></span>
+    </div>
+    <div class="top3">
+      <?php foreach (($p['top3'] ?? []) as $t): ?>
+        <div class="tile"><span><?= htmlspecialchars($t['ticker']) ?></span>
+          <b><?= htmlspecialchars($t['score']) ?></b>
+          <p class="muted small"><?= htmlspecialchars($t['reason']) ?></p></div>
+      <?php endforeach; ?>
+    </div>
+    <details class="rationale" open>
+      <summary>Full AI analysis — why / how / trend / risk</summary>
+      <p><?= nl2br(htmlspecialchars($p['rationale'] ?? '')) ?></p>
+    </details>
+    <button class="btn oneclick" data-action="APPROVE_BUY"
+            data-ticker="<?= htmlspecialchars($p['chosen']) ?>">
+      One-click APPROVE BUY — first tranche <?= $settings['tranche_base'] ?> shares @ best bid</button>
+    <p class="muted small">Queues your approval; the engine places the order on its
+      next tick (with --execute). Nothing trades without this click.</p>
+  </section>
+  <?php endif; ?>
+
+  <footer class="foot">Trading AI Horizon · momentum engine · you approve, it executes</footer>
 </main>
+
+<script>
+document.querySelectorAll('.oneclick').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    if (!confirm(`Confirm: ${btn.dataset.action.replace('_', ' ')} ${btn.dataset.ticker}?`)) return;
+    btn.disabled = true; const old = btn.textContent;
+    btn.textContent = 'Queueing...';
+    try {
+      const r = await fetch('api/command.php', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({action: btn.dataset.action, ticker: btn.dataset.ticker,
+                              csrf: '<?= $csrf ?>'})});
+      const j = await r.json();
+      btn.textContent = j.ok ? 'QUEUED ✓ — engine will act on next tick' : ('Failed: ' + (j.error || '?'));
+    } catch (e) { btn.textContent = 'Network error'; btn.disabled = false; }
+    setTimeout(() => { btn.textContent = old; btn.disabled = false; }, 6000);
+  });
+});
+</script>
 </body>
 </html>
