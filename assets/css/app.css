@@ -101,10 +101,13 @@ select.in option{background:#12172a; color:var(--ink)}
 .hero.wide{max-width:760px}
 .ticker{overflow:hidden; border:1px solid var(--line); border-radius:999px;
   margin-bottom:20px; background:rgba(255,255,255,.03)}
-.ticker-track{display:inline-flex; gap:26px; padding:8px 0; white-space:nowrap;
-  animation:scroll 40s linear infinite}
+.ticker-track{display:inline-flex; gap:32px; padding:8px 0; white-space:nowrap;
+  animation:scroll 120s linear infinite}
 .ticker:hover .ticker-track{animation-play-state:paused}
-@keyframes scroll{from{transform:translateX(2%)}to{transform:translateX(-100%)}}
+@keyframes scroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.flash-up{animation:fup 1.2s ease} .flash-dn{animation:fdn 1.2s ease}
+@keyframes fup{0%{color:var(--ok)}100%{color:inherit}}
+@keyframes fdn{0%{color:var(--bad)}100%{color:inherit}}
 .tk{font-size:12.5px; color:var(--muted)}
 .tk b{color:var(--ink)} .tk em{font-style:normal; font-size:11px}
 .camp-head{display:flex; justify-content:space-between; align-items:baseline;

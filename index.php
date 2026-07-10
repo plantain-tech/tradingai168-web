@@ -32,7 +32,7 @@ function spark(array $hist): string {                 // tiny SVG equity sparkli
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Trading AI Horizon — Dashboard</title>
-<link rel="stylesheet" href="assets/css/app.css?v=6">
+<link rel="stylesheet" href="assets/css/app.css?v=7">
 </head>
 <body>
 <div class="bg"></div>
@@ -42,12 +42,15 @@ function spark(array $hist): string {                 // tiny SVG equity sparkli
     <a href="logout.php">Log out</a>
   </nav>
 
-  <?php if ($candDoc && !empty($candDoc['data'])): ?>
+  <?php $top10 = array_slice($candDoc['data'] ?? [], 0, 10);
+        if ($top10): ?>
   <div class="ticker"><div class="ticker-track">
-    <?php foreach (array_slice($candDoc['data'], 0, 19) as $c): ?>
-      <span class="tk"><b><?= htmlspecialchars($c['ticker']) ?></b>
-        $<?= number_format((float) $c['price'], 2) ?>
-        <em class="ok">+<?= round($c['avg_slope'] * 100) ?>%/yr</em></span>
+    <?php foreach ([0, 1] as $copy): /* duplicated for seamless loop */ ?>
+      <?php foreach ($top10 as $c): $t = htmlspecialchars($c['ticker']); ?>
+      <span class="tk"><b><?= $t ?></b>
+        <span class="tk-px" data-t="<?= $t ?>">$<?= number_format((float) $c['price'], 2) ?></span>
+        <em class="tk-chg" data-t="<?= $t ?>"></em></span>
+      <?php endforeach; ?>
     <?php endforeach; ?>
   </div></div>
   <?php endif; ?>
@@ -130,6 +133,33 @@ function spark(array $hist): string {                 // tiny SVG equity sparkli
 </main>
 
 <script>
+// Live ticker: poll fresh quotes every 10s and update prices in place.
+const tickers = [...new Set([...document.querySelectorAll('.tk-px')].map(e => e.dataset.t))];
+async function refreshQuotes() {
+  if (!tickers.length) return;
+  try {
+    const r = await fetch('api/quotes.php?t=' + tickers.join(','));
+    const j = await r.json();
+    for (const [t, q] of Object.entries(j.quotes || {})) {
+      document.querySelectorAll(`.tk-px[data-t="${t}"]`).forEach(e => {
+        const old = parseFloat(e.textContent.slice(1));
+        e.textContent = '$' + q.price.toFixed(2);
+        if (old && old !== q.price) {
+          e.classList.remove('flash-up', 'flash-dn');
+          void e.offsetWidth;                       // restart animation
+          e.classList.add(q.price > old ? 'flash-up' : 'flash-dn');
+        }
+      });
+      document.querySelectorAll(`.tk-chg[data-t="${t}"]`).forEach(e => {
+        e.textContent = (q.chg_pct >= 0 ? '+' : '') + q.chg_pct.toFixed(2) + '%';
+        e.className = 'tk-chg ' + (q.chg_pct >= 0 ? 'ok' : 'bad');
+      });
+    }
+  } catch (e) { /* offline: keep last prices */ }
+}
+refreshQuotes();
+setInterval(refreshQuotes, 10000);
+
 document.querySelectorAll('.oneclick').forEach(btn => {
   btn.addEventListener('click', async () => {
     if (!confirm(`Confirm: ${btn.dataset.action.replace('_', ' ')} ${btn.dataset.ticker}?`)) return;
