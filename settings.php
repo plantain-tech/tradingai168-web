@@ -64,7 +64,7 @@ $token = api_token();
 <div class="bg"></div>
 <main class="hero" style="max-width:640px">
   <nav class="nav">
-    <a href="index.php">Dashboard</a><a href="settings.php" class="on">Settings</a>
+    <a href="index.php">Dashboard</a><a href="monitor.php">Monitor</a><a href="settings.php" class="on">Settings</a>
     <a href="logout.php">Log out (<?= htmlspecialchars($_SESSION['email']) ?>)</a>
   </nav>
   <h1 class="pagetitle">Settings</h1>

@@ -10,6 +10,17 @@ $candDoc = doc_get('candidates');
 $campaigns = docs_all('campaign_');
 $csrf = csrf_token();
 
+// Button states: a ticker is LOCKED while its campaign runs; QUEUED if a command waits.
+$running = [];
+foreach ($campaigns as $k => $c) {
+    $d = $c['data'];
+    if (($d['status'] ?? '') === 'ACTIVE') { $running[$d['ticker']] = true; }
+}
+$queued = [];
+foreach (commands_pending() as $cmd) { $queued[$cmd['ticker']][$cmd['action']] = true; }
+$names = [];
+foreach (($candDoc['data'] ?? []) as $c) { $names[$c['ticker']] = $c['name'] ?? $c['ticker']; }
+
 function spark(array $hist): string {                 // tiny SVG equity sparkline
     $vals = array_map(fn($h) => (float) $h[1], $hist);
     if (count($vals) < 2) { return ''; }
@@ -32,14 +43,14 @@ function spark(array $hist): string {                 // tiny SVG equity sparkli
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Trading AI Horizon — Dashboard</title>
-<link rel="stylesheet" href="assets/css/app.css?v=7">
+<link rel="stylesheet" href="assets/css/app.css?v=8">
 </head>
 <body>
 <div class="bg"></div>
 <main class="hero wide">
   <nav class="nav">
-    <a href="index.php" class="on">Dashboard</a><a href="settings.php">Settings</a>
-    <a href="logout.php">Log out</a>
+    <a href="index.php" class="on">Dashboard</a><a href="monitor.php">Monitor</a>
+    <a href="settings.php">Settings</a><a href="logout.php">Log out</a>
   </nav>
 
   <?php $top10 = array_slice($candDoc['data'] ?? [], 0, 10);
@@ -111,27 +122,42 @@ function spark(array $hist): string {                 // tiny SVG equity sparkli
         · <?= htmlspecialchars($pick['updated_at']) ?></span>
     </div>
     <div class="top3">
-      <?php foreach (($p['top3'] ?? []) as $t): ?>
-        <div class="tile"><span><?= htmlspecialchars($t['ticker']) ?></span>
+      <?php foreach (($p['top3'] ?? []) as $t): $tk = htmlspecialchars($t['ticker']);
+            $isChosen = $tk === ($p['chosen'] ?? '');
+            $isRunning = !empty($running[$tk]);
+            $isQueued = !empty($queued[$tk]['APPROVE_BUY']); ?>
+        <div class="tile pick-tile <?= $isChosen ? 'chosen' : '' ?>">
+          <?php if ($isChosen): ?><span class="crown">★ AI CHOICE</span><?php endif; ?>
+          <span><?= $tk ?> <em class="muted"><?= htmlspecialchars($names[$tk] ?? '') ?></em></span>
           <b><?= htmlspecialchars($t['score']) ?></b>
-          <p class="muted small"><?= htmlspecialchars($t['reason']) ?></p></div>
+          <p class="muted small"><?= htmlspecialchars($t['reason']) ?></p>
+          <?php if ($isRunning): ?>
+            <button class="btn buybtn locked" disabled><span class="lockdot"></span>
+              Auto-trading running — until position fully sold</button>
+          <?php elseif ($isQueued): ?>
+            <button class="btn buybtn locked" disabled><span class="lockdot"></span>
+              Queued — engine will buy on next tick</button>
+          <?php else: ?>
+            <button class="btn buybtn buy-click" data-ticker="<?= $tk ?>"
+                    data-name="<?= htmlspecialchars($names[$tk] ?? $tk) ?>">
+              One-click BUY <?= $tk ?></button>
+          <?php endif; ?>
+        </div>
       <?php endforeach; ?>
     </div>
-    <details class="rationale" open>
+    <details class="rationale">
       <summary>Full AI analysis — why / how / trend / risk</summary>
       <p><?= nl2br(htmlspecialchars($p['rationale'] ?? '')) ?></p>
     </details>
-    <button class="btn oneclick" data-action="APPROVE_BUY"
-            data-ticker="<?= htmlspecialchars($p['chosen']) ?>">
-      One-click APPROVE BUY — first tranche <?= $settings['tranche_base'] ?> shares @ best bid</button>
-    <p class="muted small">Queues your approval; the engine places the order on its
-      next tick (with --execute). Nothing trades without this click.</p>
+    <p class="muted small">A click queues your approval; the engine buys the first
+      tranche (<?= $settings['tranche_base'] ?> shares @ best bid) on its next tick,
+      then runs the DCA autopilot. Nothing trades without your click.</p>
   </section>
   <?php endif; ?>
 
   <footer class="foot">Trading AI Horizon · momentum engine · you approve, it executes</footer>
 </main>
-
+<?php require __DIR__ . '/inc/modal.php'; ?>
 <script>
 // Live ticker: poll fresh quotes every 10s and update prices in place.
 const tickers = [...new Set([...document.querySelectorAll('.tk-px')].map(e => e.dataset.t))];
@@ -160,20 +186,45 @@ async function refreshQuotes() {
 refreshQuotes();
 setInterval(refreshQuotes, 10000);
 
-document.querySelectorAll('.oneclick').forEach(btn => {
-  btn.addEventListener('click', async () => {
-    if (!confirm(`Confirm: ${btn.dataset.action.replace('_', ' ')} ${btn.dataset.ticker}?`)) return;
-    btn.disabled = true; const old = btn.textContent;
-    btn.textContent = 'Queueing...';
-    try {
-      const r = await fetch('api/command.php', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({action: btn.dataset.action, ticker: btn.dataset.ticker,
-                              csrf: '<?= $csrf ?>'})});
-      const j = await r.json();
-      btn.textContent = j.ok ? 'QUEUED ✓ — engine will act on next tick' : ('Failed: ' + (j.error || '?'));
-    } catch (e) { btn.textContent = 'Network error'; btn.disabled = false; }
-    setTimeout(() => { btn.textContent = old; btn.disabled = false; }, 6000);
+const CSRF = '<?= $csrf ?>';
+const TRANCHE = <?= (int) $settings['tranche_base'] ?>;
+
+document.querySelectorAll('.buy-click').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const t = btn.dataset.ticker;
+    const px = document.querySelector(`.tk-px[data-t="${t}"]`)?.textContent || '—';
+    tradeModal({
+      title: `Buy ${t}?`, icon: '🚀',
+      rows: [['Company', btn.dataset.name], ['Ticker', t],
+             ['First tranche', TRANCHE + ' shares'], ['Order', 'limit @ best bid'],
+             ['Last price', px],
+             ['Then', 'DCA autopilot ±5 sh / 5 days → 100 sh']],
+      note: 'Queues your approval — the engine places the order on its next tick. ' +
+            'Loss alerts and budget caps stay enforced.',
+      okLabel: 'Confirm BUY',
+      onConfirm: async () => {
+        if (await queueCommand('APPROVE_BUY', t, CSRF)) {
+          lockButton(btn, 'Auto-trading running — until position fully sold');
+        } else { alert('Could not queue — try again.'); }
+      }
+    });
+  });
+});
+
+document.querySelectorAll('.oneclick').forEach(btn => {   // sell-all on campaign card
+  btn.addEventListener('click', () => {
+    const t = btn.dataset.ticker;
+    tradeModal({
+      title: `Sell ALL ${t}?`, icon: '💰', danger: true,
+      rows: [['Ticker', t], ['Order', 'sell entire position @ best ask']],
+      note: 'Queues your approval — the engine sells on its next tick.',
+      okLabel: 'Confirm SELL ALL',
+      onConfirm: async () => {
+        if (await queueCommand('APPROVE_SELL_ALL', t, CSRF)) {
+          lockButton(btn, 'Sell queued — engine will exit on next tick');
+        } else { alert('Could not queue — try again.'); }
+      }
+    });
   });
 });
 </script>
