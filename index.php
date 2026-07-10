@@ -4,7 +4,7 @@ require __DIR__ . '/inc/auth.php';
 require_login();
 $configPath = __DIR__ . '/config/config.php';
 $cfg  = file_exists($configPath) ? require $configPath : null;
-require __DIR__ . '/inc/db.php';
+require_once __DIR__ . '/inc/db.php';   // auth.php already loads it; once-guard
 
 $dbOk = false; $tableCount = 0; $status = 'not_configured'; $detail = '';
 if ($cfg) {
