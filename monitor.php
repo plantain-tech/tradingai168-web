@@ -27,15 +27,12 @@ foreach ($campaigns as $k => $c) {
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Monitor — Trading AI Horizon</title>
-<link rel="stylesheet" href="assets/css/app.css?v=8">
+<link rel="stylesheet" href="assets/css/app.css?v=9">
 </head>
 <body>
 <div class="bg"></div>
+<?php $NAV_ACTIVE = 'mon'; require __DIR__ . '/inc/nav.php'; ?>
 <main class="hero wide">
-  <nav class="nav">
-    <a href="index.php">Dashboard</a><a href="monitor.php" class="on">Monitor</a>
-    <a href="settings.php">Settings</a><a href="logout.php">Log out</a>
-  </nav>
   <div class="badge"><span class="livedot"></span> LIVE MONITOR · refreshes every 10s</div>
   <h1 class="pagetitle" style="font-size:32px">Position Monitor</h1>
 
@@ -69,7 +66,9 @@ foreach ($campaigns as $k => $c) {
       <div class="plbar"><div class="plbar-fill" data-t="<?= $t ?>"></div></div>
 
       <div class="tiles mon-tiles">
-        <div class="tile"><span>Shares</span><b><?= $qty ?> / <?= $settings['target_shares'] ?></b></div>
+        <div class="tile"><span>Shares</span><b><?= $qty ?></b></div>
+        <div class="tile"><span>Budget used</span><b>$<?= number_format($d['invested'] ?? 0, 0) ?>
+          <em class="muted small">/ $<?= number_format($d['stock_budget'] ?? 0, 0) ?></em></b></div>
         <div class="tile"><span>Avg cost</span><b>$<?= number_format($avg, 2) ?></b></div>
         <div class="tile"><span>Total value</span><b class="live-val" data-t="<?= $t ?>">—</b></div>
         <div class="tile"><span>Status</span><b><?= htmlspecialchars($d['status'] ?? '') ?></b></div>

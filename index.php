@@ -20,6 +20,10 @@ $queued = [];
 foreach (commands_pending() as $cmd) { $queued[$cmd['ticker']][$cmd['action']] = true; }
 $names = [];
 foreach (($candDoc['data'] ?? []) as $c) { $names[$c['ticker']] = $c['name'] ?? $c['ticker']; }
+$maxConcurrent = (int) ($settings['max_concurrent'] ?? 3);
+$slotsFull = count($running) + count(array_filter($queued,
+    fn($q) => !empty($q['APPROVE_BUY']))) >= $maxConcurrent;
+$NAV_ACTIVE = 'dash';
 
 function spark(array $hist): string {                 // tiny SVG equity sparkline
     $vals = array_map(fn($h) => (float) $h[1], $hist);
@@ -43,16 +47,12 @@ function spark(array $hist): string {                 // tiny SVG equity sparkli
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Trading AI Horizon — Dashboard</title>
-<link rel="stylesheet" href="assets/css/app.css?v=8">
+<link rel="stylesheet" href="assets/css/app.css?v=9">
 </head>
 <body>
 <div class="bg"></div>
+<?php require __DIR__ . '/inc/nav.php'; ?>
 <main class="hero wide">
-  <nav class="nav">
-    <a href="index.php" class="on">Dashboard</a><a href="monitor.php">Monitor</a>
-    <a href="settings.php">Settings</a><a href="logout.php">Log out</a>
-  </nav>
-
   <?php $top10 = array_slice($candDoc['data'] ?? [], 0, 10);
         if ($top10): ?>
   <div class="ticker"><div class="ticker-track">
@@ -71,12 +71,24 @@ function spark(array $hist): string {                 // tiny SVG equity sparkli
 
   <?php if (!$campaigns && !$pick): ?>
     <section class="card"><h2>Waiting for engine data</h2>
-      <p class="muted">Run a pick or a tick on your PC and it appears here:</p>
-      <p class="muted"><code>python -X utf8 scripts/pick_stock.py --no-trends --push</code><br>
-      <code>python runner/momentum_loop.py --ticker TGT</code></p></section>
+      <p class="muted">Start the engine service once on your PC and everything else is click-driven:</p>
+      <p class="muted"><code>python runner/service.py</code> (leave running) ·
+      <code>python -X utf8 scripts/pick_stock.py --no-trends --push</code> for a fresh pick</p></section>
   <?php endif; ?>
 
   <?php foreach ($campaigns as $k => $c): $d = $c['data'];
+        $st = $d['status'] ?? '';
+        if ($st === 'CANCELLED') { continue; }                    // gone from UI
+        $qty0 = (float) ($d['qty'] ?? 0);
+        if ($qty0 <= 0 && $st === 'ACTIVE'): ?>
+  <section class="card slim-card">
+    <div><b><?= htmlspecialchars($d['ticker']) ?></b>
+      <span class="muted">campaign created — awaiting first buy</span></div>
+    <button class="btn ghost cancel-click" data-ticker="<?= htmlspecialchars($d['ticker']) ?>">
+      Cancel campaign</button>
+  </section>
+  <?php continue; endif;
+        if ($qty0 <= 0) { continue; }                              // closed/empty: hide
         $pnlClass = ($d['pnl'] ?? 0) >= 0 ? 'ok' : 'bad'; ?>
   <section class="card camp">
     <div class="camp-head">
@@ -86,7 +98,9 @@ function spark(array $hist): string {                 // tiny SVG equity sparkli
     </div>
     <div class="tiles">
       <div class="tile"><span>P&amp;L</span><b class="<?= $pnlClass ?>">$<?= number_format($d['pnl'] ?? 0, 0) ?></b></div>
-      <div class="tile"><span>Shares</span><b><?= $d['qty'] ?? 0 ?> / <?= $settings['target_shares'] ?></b></div>
+      <div class="tile"><span>Shares</span><b><?= $d['qty'] ?? 0 ?></b></div>
+      <div class="tile"><span>Budget used</span><b>$<?= number_format($d['invested'] ?? 0, 0) ?>
+        <em class="muted small">/ $<?= number_format($d['stock_budget'] ?? 0, 0) ?></em></b></div>
       <div class="tile"><span>Avg cost</span><b>$<?= number_format($d['avg_cost'] ?? 0, 2) ?></b></div>
       <div class="tile"><span>Price</span><b>$<?= number_format($d['price'] ?? 0, 2) ?></b></div>
     </div>
@@ -125,9 +139,13 @@ function spark(array $hist): string {                 // tiny SVG equity sparkli
       <?php foreach (($p['top3'] ?? []) as $t): $tk = htmlspecialchars($t['ticker']);
             $isChosen = $tk === ($p['chosen'] ?? '');
             $isRunning = !empty($running[$tk]);
-            $isQueued = !empty($queued[$tk]['APPROVE_BUY']); ?>
-        <div class="tile pick-tile <?= $isChosen ? 'chosen' : '' ?>">
-          <?php if ($isChosen): ?><span class="crown">★ AI CHOICE</span><?php endif; ?>
+            $isQueued = !empty($queued[$tk]['APPROVE_BUY']);
+            $analysis = $t['analysis'] ?? $t['reason'] ?? '';
+            if ($isChosen && !empty($p['rationale'])) { $analysis = $p['rationale']; } ?>
+        <div class="tile pick-tile selectable <?= $isChosen ? 'chosen selected' : '' ?>"
+             data-ticker="<?= $tk ?>" role="button" tabindex="0"
+             data-analysis="<?= htmlspecialchars($analysis) ?>">
+          <?php if ($isChosen): ?><span class="crown">★ TOP CHOICE</span><?php endif; ?>
           <span><?= $tk ?> <em class="muted"><?= htmlspecialchars($names[$tk] ?? '') ?></em></span>
           <b><?= htmlspecialchars($t['score']) ?></b>
           <p class="muted small"><?= htmlspecialchars($t['reason']) ?></p>
@@ -137,6 +155,9 @@ function spark(array $hist): string {                 // tiny SVG equity sparkli
           <?php elseif ($isQueued): ?>
             <button class="btn buybtn locked" disabled><span class="lockdot"></span>
               Queued — engine will buy on next tick</button>
+          <?php elseif ($slotsFull): ?>
+            <button class="btn buybtn locked" disabled>
+              Max <?= $maxConcurrent ?> stocks trading — sell one to free a slot</button>
           <?php else: ?>
             <button class="btn buybtn buy-click" data-ticker="<?= $tk ?>"
                     data-name="<?= htmlspecialchars($names[$tk] ?? $tk) ?>">
@@ -145,13 +166,24 @@ function spark(array $hist): string {                 // tiny SVG equity sparkli
         </div>
       <?php endforeach; ?>
     </div>
-    <details class="rationale">
-      <summary>Full AI analysis — why / how / trend / risk</summary>
-      <p><?= nl2br(htmlspecialchars($p['rationale'] ?? '')) ?></p>
-    </details>
-    <p class="muted small">A click queues your approval; the engine buys the first
-      tranche (<?= $settings['tranche_base'] ?> shares @ best bid) on its next tick,
-      then runs the DCA autopilot. Nothing trades without your click.</p>
+
+    <div class="ai-panel open" id="aiPanel">
+      <button class="ai-panel-head" id="aiPanelHead" type="button">
+        <span>Full AI analysis — <b class="grad-t" id="aiPanelTicker"><?= htmlspecialchars($p['chosen'] ?? '') ?></b>
+          <em class="muted small">why / how / trend / risk</em></span>
+        <svg class="chev" viewBox="0 0 24 24" width="18" height="18">
+          <path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="ai-panel-wrap"><div class="ai-panel-body" id="aiPanelBody"><?=
+        nl2br(htmlspecialchars($p['rationale'] ?? '')) ?></div></div>
+    </div>
+
+    <p class="muted small">Click a card to read its analysis. A BUY click queues your
+      approval; the engine service buys the first tranche @ best bid and runs the DCA
+      autopilot within its per-stock budget
+      ($<?= number_format($settings['budget_usd'] / max(1, $maxConcurrent), 0) ?> each,
+      $<?= number_format($settings['budget_usd'], 0) ?> global). Nothing trades without your click.</p>
   </section>
   <?php endif; ?>
 
@@ -188,6 +220,55 @@ setInterval(refreshQuotes, 10000);
 
 const CSRF = '<?= $csrf ?>';
 const TRANCHE = <?= (int) $settings['tranche_base'] ?>;
+
+// ---- pick cards: click to select -> animated analysis swap ----
+const panel = document.getElementById('aiPanel');
+if (panel) {
+  const body = document.getElementById('aiPanelBody');
+  const tkEl = document.getElementById('aiPanelTicker');
+  document.getElementById('aiPanelHead').addEventListener('click',
+    () => panel.classList.toggle('open'));
+  document.querySelectorAll('.pick-tile.selectable').forEach(card => {
+    const select = () => {
+      document.querySelectorAll('.pick-tile.selected')
+        .forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+      tkEl.textContent = card.dataset.ticker;
+      body.classList.add('swapping');
+      setTimeout(() => {
+        body.innerHTML = card.dataset.analysis.replace(/\n/g, '<br>');
+        body.classList.remove('swapping');
+        panel.classList.add('open');
+      }, 180);
+    };
+    card.addEventListener('click', e => {
+      if (e.target.closest('button')) return;      // buttons keep their own action
+      select();
+    });
+    card.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(); }
+    });
+  });
+}
+
+// ---- cancel a not-yet-filled campaign ----
+document.querySelectorAll('.cancel-click').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const t = btn.dataset.ticker;
+    tradeModal({
+      title: `Cancel ${t} campaign?`, icon: '🗑️', danger: true,
+      rows: [['Ticker', t], ['Shares held', '0'],
+             ['Effect', 'campaign removed before any buy']],
+      note: 'Only possible while no shares are held. The engine confirms on its next cycle.',
+      okLabel: 'Cancel campaign',
+      onConfirm: async () => {
+        if (await queueCommand('CANCEL_CAMPAIGN', t, CSRF)) {
+          lockButton(btn, 'Cancellation queued');
+        } else { alert('Could not queue — try again.'); }
+      }
+    });
+  });
+});
 
 document.querySelectorAll('.buy-click').forEach(btn => {
   btn.addEventListener('click', () => {

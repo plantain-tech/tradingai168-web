@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $f = fn($k, $d) => is_numeric($_POST[$k] ?? null) ? (float) $_POST[$k] : $d;
         $s = [
             'budget_usd'       => max(100, $f('budget_usd', 15000)),
-            'target_shares'    => max(1, (int) $f('target_shares', 100)),
+            'max_concurrent'   => max(1, min(10, (int) $f('max_concurrent', 3))),
             'tranche_base'     => max(1, (int) $f('tranche_base', 20)),
             'tranche_step'     => max(0, (int) $f('tranche_step', 5)),
             'dca_gap_bdays'    => max(1, (int) $f('dca_gap_bdays', 5)),
@@ -58,15 +58,12 @@ $token = api_token();
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Settings — Trading AI Horizon</title>
-<link rel="stylesheet" href="assets/css/app.css?v=8">
+<link rel="stylesheet" href="assets/css/app.css?v=9">
 </head>
 <body>
 <div class="bg"></div>
+<?php $NAV_ACTIVE = 'set'; require __DIR__ . '/inc/nav.php'; ?>
 <main class="hero" style="max-width:640px">
-  <nav class="nav">
-    <a href="index.php">Dashboard</a><a href="monitor.php">Monitor</a><a href="settings.php" class="on">Settings</a>
-    <a href="logout.php">Log out (<?= htmlspecialchars($_SESSION['email']) ?>)</a>
-  </nav>
   <h1 class="pagetitle">Settings</h1>
   <?php if ($msg): ?><p class="alert-ok"><?= htmlspecialchars($msg) ?></p><?php endif; ?>
   <?php if ($err): ?><p class="alert-bad"><?= htmlspecialchars($err) ?></p><?php endif; ?>
@@ -78,8 +75,9 @@ $token = api_token();
       <input type="hidden" name="action" value="trading">
       <div><label>Budget cap ($)</label>
         <input class="in" name="budget_usd" type="number" step="1" value="<?= $s['budget_usd'] ?>"></div>
-      <div><label>Target shares</label>
-        <input class="in" name="target_shares" type="number" value="<?= $s['target_shares'] ?>"></div>
+      <div><label>Max concurrent stocks</label>
+        <input class="in" name="max_concurrent" type="number" min="1" max="10"
+               value="<?= $s['max_concurrent'] ?? 3 ?>"></div>
       <div><label>Tranche base (shares)</label>
         <input class="in" name="tranche_base" type="number" value="<?= $s['tranche_base'] ?>"></div>
       <div><label>Tranche step (&plusmn;)</label>

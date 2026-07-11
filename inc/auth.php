@@ -64,7 +64,7 @@ function ensure_tables(PDO $pdo): void {
 // ---- settings (mirror of the Python engine's DEFAULTS) ---------------------
 function default_settings(): array {
     return [
-        'budget_usd' => 15000, 'target_shares' => 100,
+        'budget_usd' => 15000, 'max_concurrent' => 3,
         'tranche_base' => 20, 'tranche_step' => 5, 'dca_gap_bdays' => 5,
         'profit_alert_pct' => 0.15, 'loss_alert_usd' => 1500,
         'loss_urgent_usd' => 2250, 'fill_wait_s' => 45,

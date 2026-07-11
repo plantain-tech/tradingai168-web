@@ -31,7 +31,7 @@ if (($b['csrf'] ?? '') !== ($_SESSION['csrf'] ?? null)) {
 }
 $action = $b['action'] ?? '';
 $ticker = strtoupper(preg_replace('/[^A-Za-z\-]/', '', $b['ticker'] ?? ''));
-if (!in_array($action, ['APPROVE_BUY', 'APPROVE_SELL_ALL'], true) || !$ticker) {
+if (!in_array($action, ['APPROVE_BUY', 'APPROVE_SELL_ALL', 'CANCEL_CAMPAIGN'], true) || !$ticker) {
     http_response_code(400); echo '{"error":"bad command"}'; exit;
 }
 command_create($action, $ticker, 'one-click from dashboard by ' . $_SESSION['email']);
