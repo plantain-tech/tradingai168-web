@@ -58,7 +58,7 @@ $token = api_token();
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Settings — Trading AI Horizon</title>
-<link rel="stylesheet" href="assets/css/app.css?v=10">
+<link rel="stylesheet" href="assets/css/app.css?v=11">
 </head>
 <body>
 <div class="bg"></div>

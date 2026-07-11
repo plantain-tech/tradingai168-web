@@ -164,11 +164,11 @@ select.in option{background:#12172a; color:var(--ink)}
 .pick-tile{position:relative; display:flex; flex-direction:column}
 .pick-tile.chosen{border-color:rgba(99,102,241,.6);
   box-shadow:0 0 0 1px rgba(99,102,241,.35), 0 10px 30px rgba(99,102,241,.15)}
-.crown{position:absolute; top:-14px; left:50%; transform:translateX(-50%);
-  white-space:nowrap; z-index:2; overflow:hidden;
-  font-size:10.5px; letter-spacing:.16em; font-weight:800; color:#fff;
-  text-shadow:0 1px 2px rgba(0,0,0,.35);
-  background:linear-gradient(100deg,var(--brand1),var(--brand2));
+.crown, .tile span.crown{position:absolute; top:-14px; left:50%; transform:translateX(-50%);
+  white-space:nowrap; z-index:2; overflow:hidden; display:inline-block;
+  font-size:10.5px; letter-spacing:.16em; font-weight:900;
+  color:#071022; -webkit-text-fill-color:#071022; text-shadow:none;
+  background:linear-gradient(100deg,#7c7ff7,#3ee0f8);
   padding:6px 16px; border-radius:999px;
   box-shadow:0 0 0 4px #0e1322, 0 6px 18px rgba(34,211,238,.45),
              0 2px 6px rgba(99,102,241,.5)}
