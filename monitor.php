@@ -81,6 +81,12 @@ foreach ($campaigns as $k => $c) {
         <button class="btn danger sell-click" data-ticker="<?= $t ?>"
                 data-name="<?= htmlspecialchars($names[$t] ?? $t) ?>">
           One-click SELL ALL <?= $qty ?> shares</button>
+      <?php elseif (!empty($queued[$t]['CANCEL_CAMPAIGN'])): ?>
+        <button class="btn ghost locked" disabled><span class="lockdot"></span>
+          Cancellation queued</button>
+      <?php else: ?>
+        <button class="btn ghost cancel-click" data-ticker="<?= $t ?>">
+          Awaiting first buy — cancel campaign</button>
       <?php endif; ?>
       <p class="muted small" style="margin-top:8px">updated by engine: <?= htmlspecialchars($p['updated']) ?> ·
         limits: +<?= round($settings['profit_alert_pct'] * 100) ?>% alert ·
@@ -140,6 +146,24 @@ async function refresh() {
 }
 refresh();
 setInterval(refresh, 10000);
+
+document.querySelectorAll('.cancel-click').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const t = btn.dataset.ticker;
+    tradeModal({
+      title: `Cancel ${t} campaign?`, icon: '🗑️', danger: true,
+      rows: [['Ticker', t], ['Shares held', '0'],
+             ['Effect', 'campaign removed before any buy']],
+      note: 'Only possible while no shares are held. The engine confirms shortly.',
+      okLabel: 'Cancel campaign',
+      onConfirm: async () => {
+        if (await queueCommand('CANCEL_CAMPAIGN', t, CSRF)) {
+          lockButton(btn, 'Cancellation queued');
+        } else { alert('Could not queue — try again.'); }
+      }
+    });
+  });
+});
 
 document.querySelectorAll('.sell-click').forEach(btn => {
   btn.addEventListener('click', () => {
