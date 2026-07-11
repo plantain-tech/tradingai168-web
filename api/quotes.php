@@ -13,7 +13,7 @@ if (empty($_SESSION['uid']) && !bearer_ok()) {
 
 $tickers = array_slice(array_filter(array_map(
     fn($t) => strtoupper(preg_replace('/[^A-Za-z\-]/', '', $t)),
-    explode(',', $_GET['t'] ?? ''))), 0, 10);
+    explode(',', $_GET['t'] ?? ''))), 0, 30);
 if (!$tickers) { echo '{"quotes":{}}'; exit; }
 
 sort($tickers);

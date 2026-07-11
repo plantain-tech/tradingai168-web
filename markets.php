@@ -20,7 +20,7 @@ $NAV_ACTIVE = 'mkt';
 <div class="bg"></div>
 <?php require __DIR__ . '/inc/nav.php'; ?>
 <main class="hero" style="max-width:1100px">
-  <div class="badge">ETF UNIVERSE · DOW 30 + NASDAQ-100 + S&amp;P 500</div>
+  <div class="badge"><span class="livedot"></span> ETF UNIVERSE · DOW 30 + NASDAQ-100 + S&amp;P 500 · LIVE</div>
   <h1 class="pagetitle" style="font-size:32px">Markets</h1>
 
   <?php if (!$rows): ?>
@@ -53,9 +53,10 @@ $NAV_ACTIVE = 'mkt';
         <tbody id="mktBody"></tbody>
       </table>
     </div>
-    <p class="muted small" style="margin-top:10px">Price/MA/52wk computed from daily
-      history; P/E, P/B and market cap from Yahoo Finance (— when unavailable).
-      Refreshed daily by the engine service.</p>
+    <p class="muted small" style="margin-top:10px">Prices for the rows in view
+      refresh live every ~12s (same feed as the ticker); P/E and market cap are
+      re-derived from the live price. MA/52wk/P&#8203;/B refresh daily via the engine
+      service. "—" = fundamental unavailable from the free feed.</p>
   </section>
   <?php endif; ?>
   <footer class="foot">the same universe the AI screener hunts in</footer>
@@ -81,24 +82,59 @@ function render() {
     return (typeof av === 'string' ? av.localeCompare(bv) : av - bv) * sortDir;
   });
   document.getElementById('mktCount').textContent = rows.length;
+  liveSet = rows.slice(0, 30).map(r => r.t);           // live-update the rows in view
   body.innerHTML = rows.map((r, i) => {
     const chgCls = r.c >= 0 ? 'ok' : 'bad';
     const above = r.p >= r.ma50 ? 'ok' : 'bad';
     const nearHi = r.hi && r.p >= r.hi * 0.95;
-    return `<tr class="mrowa" style="animation-delay:${Math.min(i, 25) * 18}ms">
+    return `<tr class="mrowa" data-t="${r.t}" style="animation-delay:${Math.min(i, 25) * 18}ms">
       <td class="tkc"><b>${r.t}</b>${nearHi ? ' <span class="hi52" title="within 5% of 52wk high">▲</span>' : ''}</td>
       <td class="left name">${r.n || ''}</td>
-      <td class="num"><b>$${fmt(r.p)}</b></td>
-      <td class="num ${chgCls}">${r.c >= 0 ? '+' : ''}${fmt(r.c)}%</td>
+      <td class="num m-p"><b>$${fmt(r.p)}</b></td>
+      <td class="num m-c ${chgCls}">${r.c >= 0 ? '+' : ''}${fmt(r.c)}%</td>
       <td class="num ${above}">$${fmt(r.ma50)}</td>
       <td class="num">$${fmt(r.ma200)}</td>
-      <td class="num">${fmt(r.pe, 1)}</td>
+      <td class="num m-pe">${fmt(r.pe, 1)}</td>
       <td class="num">${fmt(r.pb)}</td>
-      <td class="num">${mcap(r.mc)}</td>
+      <td class="num m-mc">${mcap(r.mc)}</td>
       <td class="num">$${fmt(r.hi)}</td>
       <td class="num">$${fmt(r.lo)}</td></tr>`;
   }).join('');
+  liveTick();                                          // refresh new view immediately
 }
+
+// ---- live price sync for the rows in view (~12s, same feed as the ticker) ----
+let liveSet = [];
+const BASE = Object.fromEntries(ROWS.map(r => [r.t, r]));
+async function liveTick() {
+  if (!liveSet.length) return;
+  try {
+    const r = await fetch('api/quotes.php?t=' + liveSet.join(','));
+    const j = await r.json();
+    for (const [t, q] of Object.entries(j.quotes || {})) {
+      const tr = body.querySelector(`tr[data-t="${t}"]`);
+      const base = BASE[t];
+      if (!tr || !base) continue;
+      const pEl = tr.querySelector('.m-p b');
+      const old = parseFloat(pEl.textContent.replace(/[$,]/g, ''));
+      pEl.textContent = '$' + fmt(q.price);
+      if (old && Math.abs(old - q.price) > 0.004) {
+        pEl.classList.remove('flash-up', 'flash-dn'); void pEl.offsetWidth;
+        pEl.classList.add(q.price > old ? 'flash-up' : 'flash-dn');
+      }
+      const cEl = tr.querySelector('.m-c');
+      cEl.textContent = (q.chg_pct >= 0 ? '+' : '') + fmt(q.chg_pct) + '%';
+      cEl.className = 'num m-c ' + (q.chg_pct >= 0 ? 'ok' : 'bad');
+      if (base.pe && base.p) {                          // re-derive from live price
+        tr.querySelector('.m-pe').textContent = fmt(base.pe * q.price / base.p, 1);
+      }
+      if (base.mc && base.p) {
+        tr.querySelector('.m-mc').textContent = mcap(base.mc * q.price / base.p);
+      }
+    }
+  } catch (e) { /* offline — keep last values */ }
+}
+setInterval(liveTick, 12000);
 document.querySelectorAll('th.sortable').forEach(th => {
   th.addEventListener('click', () => {
     const k = th.dataset.k;
