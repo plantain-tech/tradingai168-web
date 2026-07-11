@@ -47,7 +47,7 @@ function spark(array $hist): string {                 // tiny SVG equity sparkli
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Trading AI Horizon — Dashboard</title>
-<link rel="stylesheet" href="assets/css/app.css?v=9">
+<link rel="stylesheet" href="assets/css/app.css?v=10">
 </head>
 <body>
 <div class="bg"></div>
