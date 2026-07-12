@@ -4,8 +4,7 @@ require __DIR__ . '/inc/auth.php';
 require_login();
 
 $msg = $err = '';
-$FREE_MODELS = ['gpt-oss:20b', 'gpt-oss:120b', 'deepseek-v3.1:671b',
-                'qwen3-coder:480b', 'kimi-k2:1t'];
+$FREE_MODELS = ['gpt-oss:20b', 'gpt-oss:120b'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
