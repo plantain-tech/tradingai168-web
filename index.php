@@ -25,6 +25,9 @@ $activeCount = count($running) + count(array_filter($queued,
     fn($q) => !empty($q['APPROVE_BUY'])));
 $slotsFull = $activeCount >= $maxConcurrent;
 $analysisQueued = !empty($queued['ALL']['RUN_ANALYSIS']);
+// Show an AI-failure card only if the error is NEWER than the last good pick.
+$anErr = doc_get('analysis_error');
+$showErr = $anErr && (!$pick || ($anErr['updated_at'] > $pick['updated_at']));
 $NAV_ACTIVE = 'dash';
 ?>
 <!doctype html>
@@ -32,7 +35,7 @@ $NAV_ACTIVE = 'dash';
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Trading AI Horizon — Dashboard</title>
-<link rel="stylesheet" href="assets/css/app.css?v=12">
+<link rel="stylesheet" href="assets/css/app.css?v=13">
 </head>
 <body>
 <div class="bg"></div>
@@ -62,6 +65,20 @@ $NAV_ACTIVE = 'dash';
       <span class="ab-spark">✦</span> Analyze &amp; Pick Top 3 — AI powered
       <em>screens 500+ stocks · buzz &amp; trends · <?= htmlspecialchars($settings['ai_model']) ?></em>
     </button>
+  <?php endif; ?>
+
+  <?php if ($showErr): $ae = $anErr['data']; ?>
+  <section class="card" style="border-color:rgba(248,113,113,.4)">
+    <h2 class="bad">AI analysis failed — no pick was produced (no silent fallback)</h2>
+    <p class="muted" style="margin:8px 0"><b>Stage:</b> <?= htmlspecialchars($ae['stage'] ?? '?') ?>
+      &nbsp;·&nbsp; <b>Reason:</b> <?= htmlspecialchars($ae['reason'] ?? '?') ?></p>
+    <p class="muted small">Let's fix it together — check these:</p>
+    <ul class="muted small" style="text-align:left; margin:6px 0 0 18px; line-height:1.8">
+      <?php foreach (($ae['hints'] ?? []) as $h): ?>
+        <li><?= htmlspecialchars($h) ?></li>
+      <?php endforeach; ?>
+    </ul>
+  </section>
   <?php endif; ?>
 
   <?php if ($pick): $p = $pick['data']; ?>
@@ -204,8 +221,19 @@ function renderPanel(card) {
       ? `<div class="basis"><b>How the score of ${card.dataset.score} was built:</b> ` +
         `${card.dataset.basis}</div>` : '';
   body.innerHTML =
-      `<div class="siggrid">${sigHtml}</div>${basis}` +
-      `<p>${card.dataset.analysis.replace(/\n/g, '<br>')}</p>`;
+      `<div class="siggrid">${sigHtml}</div>${basis}` + mdReport(card.dataset.analysis);
+}
+
+// Render the analyst report: "HEADING:" lines become section titles, prose flows.
+function mdReport(text) {
+  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  return text.split(/\n+/).map(line => {
+    const m = line.match(/^\s*([A-Z][A-Z &()\/0-9–-]{3,40}):\s*(.*)$/);
+    if (m) {
+      return `<h4 class="rpt-h">${esc(m[1])}</h4>` + (m[2] ? `<p>${esc(m[2])}</p>` : '');
+    }
+    return line.trim() ? `<p>${esc(line)}</p>` : '';
+  }).join('');
 }
 if (panel) {
   document.getElementById('aiPanelHead').addEventListener('click',
@@ -263,10 +291,12 @@ if (anBtn) anBtn.addEventListener('click', async () => {
   const fill = document.getElementById('anFill');
   const pct = document.getElementById('anPct');
   const stage = document.getElementById('anStage');
-  const stages = [[4, 'Contacting engine…'], [18, 'Screening 500+ stocks — price & trend rules'],
-                  [45, 'Scanning news & social buzz (free sources)'],
-                  [62, 'Weighing Google Trends momentum'],
-                  [82, 'AI is ranking the candidates…'], [92, 'Publishing the new Top 3…']];
+  const stages = [[4, 'Contacting engine…'], [15, 'Screening 500+ stocks — price & trend rules'],
+                  [35, 'Scanning news & social buzz (free sources)'],
+                  [50, 'AI pass 1 — shortlisting the strongest candidates…'],
+                  [64, 'Deep due diligence: financials, insiders, earnings calendar…'],
+                  [82, 'AI pass 2 — writing the analyst report…'],
+                  [93, 'Publishing the new Top 3…']];
   let before = null;
   try { before = (await (await fetch('api/docmeta.php?k=daily_pick')).json()).updated_at; }
   catch (e) {}
@@ -289,6 +319,9 @@ if (anBtn) anBtn.addEventListener('click', async () => {
       setTimeout(() => ov.classList.remove('open'), 6000);
     }
   }, 400);
+  let errBefore = null;
+  try { errBefore = (await (await fetch('api/docmeta.php?k=analysis_error')).json()).updated_at; }
+  catch (e) {}
   const poll = setInterval(async () => {
     try {
       const now = (await (await fetch('api/docmeta.php?k=daily_pick')).json()).updated_at;
@@ -297,6 +330,16 @@ if (anBtn) anBtn.addEventListener('click', async () => {
         fill.style.width = '100%'; pct.textContent = '100%';
         stage.textContent = 'Done — new Top 3 ready!';
         setTimeout(() => location.reload(), 900);
+        return;
+      }
+      const ej = await (await fetch('api/docmeta.php?k=analysis_error')).json();
+      if (ej.updated_at && ej.updated_at !== errBefore) {   // honest failure surfaced
+        done = true; clearInterval(anim); clearInterval(poll);
+        stage.textContent = 'Analysis failed — ' + (ej.data?.reason || 'see dashboard');
+        document.getElementById('anHint').textContent =
+          'No fallback was used. Reloading to show the full diagnostic…';
+        fill.style.width = '0%'; pct.textContent = '';
+        setTimeout(() => location.reload(), 2500);
       }
     } catch (e) {}
   }, 5000);

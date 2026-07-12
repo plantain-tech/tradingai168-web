@@ -14,7 +14,7 @@ $NAV_ACTIVE = 'mkt';
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Markets — Trading AI Horizon</title>
-<link rel="stylesheet" href="assets/css/app.css?v=12">
+<link rel="stylesheet" href="assets/css/app.css?v=13">
 </head>
 <body>
 <div class="bg"></div>

@@ -257,6 +257,10 @@ select.in option{background:#12172a; color:var(--ink)}
 .basis{font-size:13px; line-height:1.6; margin:10px 0; padding:10px 12px;
   border-left:3px solid var(--brand2); background:rgba(34,211,238,.06);
   border-radius:0 10px 10px 0}
+.rpt-h{font-size:11px; letter-spacing:.14em; color:var(--brand2); font-weight:800;
+  margin:16px 0 4px; text-transform:uppercase}
+.rpt-h:first-child{margin-top:6px}
+.ai-panel-body p{margin:6px 0}
 
 /* ---- Markets page ---- */
 .mkt-card{padding:18px}

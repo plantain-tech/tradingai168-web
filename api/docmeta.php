@@ -8,8 +8,10 @@ boot_session();
 if (empty($_SESSION['uid'])) { http_response_code(401); echo '{"error":"login"}'; exit; }
 
 $k = $_GET['k'] ?? '';
-if (!in_array($k, ['daily_pick', 'market_table', 'candidates'], true)) {
+if (!in_array($k, ['daily_pick', 'market_table', 'candidates', 'analysis_error'], true)) {
     http_response_code(400); echo '{"error":"bad key"}'; exit;
 }
 $doc = doc_get($k);
-echo json_encode(['k' => $k, 'updated_at' => $doc['updated_at'] ?? null]);
+$out = ['k' => $k, 'updated_at' => $doc['updated_at'] ?? null];
+if ($k === 'analysis_error' && $doc) { $out['data'] = $doc['data']; }
+echo json_encode($out);
