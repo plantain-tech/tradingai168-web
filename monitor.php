@@ -5,22 +5,18 @@ require __DIR__ . '/inc/engine.php';
 require_login();
 
 $settings = get_settings();
-$campaigns = docs_all('campaign_');
-$candDoc = doc_get('candidates');
-$csrf = csrf_token();
-
-$names = [];
-foreach (($candDoc['data'] ?? []) as $c) { $names[$c['ticker']] = $c['name'] ?? $c['ticker']; }
-$queued = [];
-foreach (commands_pending() as $cmd) { $queued[$cmd['ticker']][$cmd['action']] = true; }
-
-$positions = [];
-foreach ($campaigns as $k => $c) {
+$campaigns = [];
+foreach (docs_all('campaign_') as $k => $c) {
     $d = $c['data'];
-    if (($d['qty'] ?? 0) > 0 || ($d['status'] ?? '') === 'ACTIVE') {
-        $positions[] = ['d' => $d, 'updated' => $c['updated_at']];
-    }
+    $d['updated_at'] = $c['updated_at'];
+    $campaigns[] = $d;
 }
+$pending = [];
+foreach (commands_pending() as $cmd) { $pending[] = ['t' => $cmd['ticker'], 'a' => $cmd['action']]; }
+$names = [];
+foreach ((doc_get('candidates')['data'] ?? []) as $c) { $names[$c['ticker']] = $c['name'] ?? $c['ticker']; }
+$csrf = csrf_token();
+$NAV_ACTIVE = 'mon';
 ?>
 <!doctype html>
 <html lang="en">
@@ -28,129 +24,198 @@ foreach ($campaigns as $k => $c) {
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Monitor — Trading AI Horizon</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=13">
+<link rel="stylesheet" href="assets/css/app.css?v=14">
 </head>
 <body>
 <div class="bg"></div>
 <?php $NAV_ACTIVE = 'mon'; require __DIR__ . '/inc/nav.php'; ?>
 <main class="hero wide">
-  <div class="badge"><span class="livedot"></span> LIVE MONITOR · refreshes every 10s</div>
+  <div class="badge"><span class="livedot"></span> LIVE MONITOR · positions &amp; prices sync automatically</div>
   <h1 class="pagetitle" style="font-size:32px">Position Monitor</h1>
 
-  <?php if (!$positions): ?>
-    <section class="card"><h2>No positions being auto-traded yet</h2>
-      <p class="muted">Approve a BUY on the <a href="index.php" style="color:var(--brand2)">Dashboard</a> —
-      once the engine opens the position, it appears here with live tracking.</p></section>
-  <?php endif; ?>
+  <section class="card" id="emptyState" hidden>
+    <h2>No positions being auto-traded yet</h2>
+    <p class="muted">Approve a BUY on the <a href="index.php" style="color:var(--brand2)">Dashboard</a> —
+    the moment the engine opens the position, it appears here live, no refresh needed.</p>
+  </section>
 
-  <div class="mon-grid">
-  <?php foreach ($positions as $p): $d = $p['d']; $t = htmlspecialchars($d['ticker']);
-        $qty = (float) ($d['qty'] ?? 0); $avg = (float) ($d['avg_cost'] ?? 0);
-        $sellQueued = !empty($queued[$t]['APPROVE_SELL_ALL']); ?>
-    <section class="card mon-card" data-ticker="<?= $t ?>" data-qty="<?= $qty ?>" data-avg="<?= $avg ?>">
-      <div class="mon-head">
-        <div>
-          <h2 class="mon-tk"><?= $t ?></h2>
-          <span class="muted"><?= htmlspecialchars($names[$t] ?? $d['name'] ?? '') ?></span>
-        </div>
-        <div class="mon-price">
-          <b class="live-px" data-t="<?= $t ?>">$<?= number_format((float) ($d['price'] ?? 0), 2) ?></b>
-          <em class="live-chg" data-t="<?= $t ?>">—</em>
-        </div>
-      </div>
-
-      <div class="mon-pl">
-        <span>Current profit</span>
-        <b class="live-pl" data-t="<?= $t ?>">$0</b>
-        <em class="live-plpct" data-t="<?= $t ?>">0.00%</em>
-      </div>
-      <div class="plbar"><div class="plbar-fill" data-t="<?= $t ?>"></div></div>
-
-      <div class="tiles mon-tiles">
-        <div class="tile"><span>Shares</span><b><?= $qty ?></b></div>
-        <div class="tile"><span>Budget used</span><b>$<?= number_format($d['invested'] ?? 0, 0) ?>
-          <em class="muted small">/ $<?= number_format($d['stock_budget'] ?? 0, 0) ?></em></b></div>
-        <div class="tile"><span>Avg cost</span><b>$<?= number_format($avg, 2) ?></b></div>
-        <div class="tile"><span>Total value</span><b class="live-val" data-t="<?= $t ?>">—</b></div>
-        <div class="tile"><span>Status</span><b><?= htmlspecialchars($d['status'] ?? '') ?></b></div>
-      </div>
-
-      <?php if ($sellQueued): ?>
-        <button class="btn danger locked" disabled><span class="lockdot"></span>
-          Sell queued — engine will exit on next tick</button>
-      <?php elseif ($qty > 0): ?>
-        <button class="btn danger sell-click" data-ticker="<?= $t ?>"
-                data-name="<?= htmlspecialchars($names[$t] ?? $t) ?>">
-          One-click SELL ALL <?= $qty ?> shares</button>
-      <?php elseif (!empty($queued[$t]['CANCEL_CAMPAIGN'])): ?>
-        <button class="btn ghost locked" disabled><span class="lockdot"></span>
-          Cancellation queued</button>
-      <?php else: ?>
-        <button class="btn ghost cancel-click" data-ticker="<?= $t ?>">
-          Awaiting first buy — cancel campaign</button>
-      <?php endif; ?>
-      <p class="muted small" style="margin-top:8px">updated by engine: <?= htmlspecialchars($p['updated']) ?> ·
-        limits: +<?= round($settings['profit_alert_pct'] * 100) ?>% alert ·
-        −$<?= number_format($settings['loss_alert_usd']) ?> / −$<?= number_format($settings['loss_urgent_usd']) ?></p>
-    </section>
-  <?php endforeach; ?>
-  </div>
-
-  <footer class="foot">prices refresh every ~10s · P&amp;L computed live in your browser</footer>
+  <div class="mon-grid" id="monGrid"></div>
+  <footer class="foot">campaign state syncs every ~10s · prices live · P&amp;L computed in your browser</footer>
 </main>
 <?php require __DIR__ . '/inc/modal.php'; ?>
 <script>
 const CSRF = '<?= $csrf ?>';
-const cards = [...document.querySelectorAll('.mon-card')];
-const tickers = cards.map(c => c.dataset.ticker);
+const NAMES = <?= json_encode($names) ?>;
+const TARGET_PCT = <?= (float) $settings['profit_alert_pct'] * 100 ?>;
+const LIMITS = 'limits: +<?= round($settings['profit_alert_pct'] * 100) ?>% alert · −$<?=
+    number_format($settings['loss_alert_usd']) ?> / −$<?= number_format($settings['loss_urgent_usd']) ?>';
 
-function fmt(n, d = 2) { return n.toLocaleString('en-US', {minimumFractionDigits: d, maximumFractionDigits: d}); }
+let CAMPS = <?= json_encode($campaigns) ?>;
+let PENDING = <?= json_encode($pending) ?>;
+const grid = document.getElementById('monGrid');
+const fmt = (n, d = 2) => Number(n || 0).toLocaleString('en-US',
+    {minimumFractionDigits: d, maximumFractionDigits: d});
+const pendingHas = (t, a) => PENDING.some(p => p.t === t && p.a === a);
+const showable = c => (c.status === 'ACTIVE' || (c.qty || 0) > 0);
 
-async function refresh() {
-  if (!tickers.length) return;
-  try {
-    const r = await fetch('api/quotes.php?t=' + tickers.join(','));
-    const j = await r.json();
-    for (const card of cards) {
-      const t = card.dataset.ticker, q = (j.quotes || {})[t];
-      if (!q) continue;
-      const qty = parseFloat(card.dataset.qty), avg = parseFloat(card.dataset.avg);
-      const val = qty * q.price, pl = (q.price - avg) * qty;
-      const plp = avg > 0 ? (q.price / avg - 1) * 100 : 0;
-      const set = (sel, txt) => { const e = card.querySelector(sel); if (e) e.textContent = txt; };
+function cardHTML(c) {
+  const t = c.ticker, qty = c.qty || 0;
+  let btn;
+  if (pendingHas(t, 'APPROVE_SELL_ALL')) {
+    btn = `<button class="btn danger locked" disabled><span class="lockdot"></span>
+           Sell queued — engine will exit shortly</button>`;
+  } else if (qty > 0) {
+    btn = `<button class="btn danger sell-click" data-ticker="${t}">
+           One-click SELL ALL ${qty} shares</button>`;
+  } else if (pendingHas(t, 'CANCEL_CAMPAIGN')) {
+    btn = `<button class="btn ghost locked" disabled><span class="lockdot"></span>
+           Cancellation queued</button>`;
+  } else {
+    btn = `<button class="btn ghost cancel-click" data-ticker="${t}">
+           Awaiting first buy — cancel campaign</button>`;
+  }
+  return `
+    <div class="mon-head">
+      <div><h2 class="mon-tk">${t}</h2>
+        <span class="muted">${NAMES[t] || c.name || ''}</span></div>
+      <div class="mon-price">
+        <b class="live-px" data-t="${t}">$${fmt(c.price)}</b>
+        <em class="live-chg" data-t="${t}">—</em></div>
+    </div>
+    <div class="mon-pl"><span>Current profit</span>
+      <b class="live-pl" data-t="${t}">${(c.pnl >= 0 ? '+$' : '−$') + fmt(Math.abs(c.pnl || 0))}</b>
+      <em class="live-plpct" data-t="${t}">—</em></div>
+    <div class="plbar"><div class="plbar-fill" data-t="${t}"></div></div>
+    <div class="tiles mon-tiles">
+      <div class="tile"><span>Shares</span><b>${qty}</b></div>
+      <div class="tile"><span>Budget used</span><b>$${fmt(c.invested, 0)}
+        <em class="muted small">/ $${fmt(c.stock_budget, 0)}</em></b></div>
+      <div class="tile"><span>Avg cost</span><b>$${fmt(c.avg_cost)}</b></div>
+      <div class="tile"><span>Total value</span><b class="live-val" data-t="${t}">—</b></div>
+      <div class="tile"><span>Status</span><b>${c.status || ''}</b></div>
+    </div>
+    ${btn}
+    <p class="muted small" style="margin-top:8px">engine sync: ${c.updated_at || '—'} · ${LIMITS}</p>`;
+}
 
-      const pxEl = card.querySelector('.live-px');
-      const old = parseFloat(pxEl.textContent.replace(/[$,]/g, ''));
-      pxEl.textContent = '$' + fmt(q.price);
-      if (old && old !== q.price) {
-        pxEl.classList.remove('flash-up', 'flash-dn'); void pxEl.offsetWidth;
-        pxEl.classList.add(q.price > old ? 'flash-up' : 'flash-dn');
-      }
-      const chgEl = card.querySelector('.live-chg');
-      chgEl.textContent = (q.chg_pct >= 0 ? '+' : '') + q.chg_pct.toFixed(2) + '% today';
-      chgEl.className = 'live-chg ' + (q.chg_pct >= 0 ? 'ok' : 'bad');
+function sig(c) {   // structural signature: when this changes, morph the card
+  return [c.qty, c.status, c.invested, c.avg_cost,
+          pendingHas(c.ticker, 'APPROVE_SELL_ALL'),
+          pendingHas(c.ticker, 'CANCEL_CAMPAIGN')].join('|');
+}
 
-      set('.live-val', '$' + fmt(val));
-      const plEl = card.querySelector('.live-pl');
-      plEl.textContent = (pl >= 0 ? '+$' : '−$') + fmt(Math.abs(pl));
-      plEl.className = 'live-pl ' + (pl >= 0 ? 'ok' : 'bad');
-      const ppEl = card.querySelector('.live-plpct');
-      ppEl.textContent = (plp >= 0 ? '+' : '') + plp.toFixed(2) + '%';
-      ppEl.className = 'live-plpct ' + (plp >= 0 ? 'ok' : 'bad');
-
-      const bar = card.querySelector('.plbar-fill');
-      const target = <?= (float) $settings['profit_alert_pct'] * 100 ?>;
-      bar.style.width = Math.min(100, Math.max(2, (plp / target) * 100)) + '%';
-      bar.className = 'plbar-fill ' + (plp >= 0 ? 'up' : 'dn');
+const cardEls = {};   // ticker -> {el, sig}
+function renderAll(animateNew = false) {
+  const visible = CAMPS.filter(showable);
+  document.getElementById('emptyState').hidden = visible.length > 0;
+  const seen = new Set();
+  for (const c of visible) {
+    const t = c.ticker;
+    seen.add(t);
+    const s = sig(c);
+    let rec = cardEls[t];
+    if (!rec) {                                     // new card slides in
+      const el = document.createElement('section');
+      el.className = 'card mon-card card-enter';
+      el.dataset.ticker = t;
+      el.innerHTML = cardHTML(c);
+      grid.appendChild(el);
+      cardEls[t] = {el, sig: s, qty: c.qty || 0};
+      setTimeout(() => el.classList.remove('card-enter'), 700);
+    } else if (rec.sig !== s) {                     // changed -> morph in place
+      const wasAwaiting = rec.qty <= 0, nowLive = (c.qty || 0) > 0;
+      rec.el.classList.add('card-morph');
+      setTimeout(() => {
+        rec.el.innerHTML = cardHTML(c);
+        rec.el.classList.remove('card-morph');
+        if (wasAwaiting && nowLive) {               // activation: celebrate it
+          rec.el.classList.add('card-activate');
+          setTimeout(() => rec.el.classList.remove('card-activate'), 1600);
+        }
+        liveQuotes();
+      }, 260);
+      rec.sig = s;
+      rec.qty = c.qty || 0;
     }
+    if (cardEls[t]) { cardEls[t].data = c; }
+  }
+  for (const t of Object.keys(cardEls)) {           // gone -> fade out
+    if (!seen.has(t)) {
+      const el = cardEls[t].el;
+      el.classList.add('card-exit');
+      setTimeout(() => el.remove(), 450);
+      delete cardEls[t];
+    }
+  }
+}
+
+async function syncCampaigns() {
+  try {
+    const j = await (await fetch('api/campaigns.php')).json();
+    if (j.campaigns) { CAMPS = j.campaigns; PENDING = j.pending || []; renderAll(); }
   } catch (e) { /* offline — keep last */ }
 }
-refresh();
-setInterval(refresh, 10000);
 
-document.querySelectorAll('.cancel-click').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const t = btn.dataset.ticker;
+async function liveQuotes() {
+  const tickers = Object.keys(cardEls);
+  if (!tickers.length) return;
+  try {
+    const j = await (await fetch('api/quotes.php?t=' + tickers.join(','))).json();
+    for (const t of tickers) {
+      const q = (j.quotes || {})[t], rec = cardEls[t];
+      if (!q || !rec) continue;
+      const c = rec.data || {}, el = rec.el;
+      const qty = c.qty || 0, avg = c.avg_cost || 0;
+      const px = el.querySelector('.live-px');
+      const old = parseFloat(px.textContent.replace(/[$,]/g, ''));
+      px.textContent = '$' + fmt(q.price);
+      if (old && Math.abs(old - q.price) > 0.004) {
+        px.classList.remove('flash-up', 'flash-dn'); void px.offsetWidth;
+        px.classList.add(q.price > old ? 'flash-up' : 'flash-dn');
+      }
+      const chg = el.querySelector('.live-chg');
+      chg.textContent = (q.chg_pct >= 0 ? '+' : '') + q.chg_pct.toFixed(2) + '% today';
+      chg.className = 'live-chg ' + (q.chg_pct >= 0 ? 'ok' : 'bad');
+      if (qty > 0 && avg > 0) {
+        const pl = (q.price - avg) * qty, plp = (q.price / avg - 1) * 100;
+        const plEl = el.querySelector('.live-pl');
+        plEl.textContent = (pl >= 0 ? '+$' : '−$') + fmt(Math.abs(pl));
+        plEl.className = 'live-pl ' + (pl >= 0 ? 'ok' : 'bad');
+        const pp = el.querySelector('.live-plpct');
+        pp.textContent = (plp >= 0 ? '+' : '') + plp.toFixed(2) + '%';
+        pp.className = 'live-plpct ' + (plp >= 0 ? 'ok' : 'bad');
+        el.querySelector('.live-val').textContent = '$' + fmt(qty * q.price);
+        const bar = el.querySelector('.plbar-fill');
+        bar.style.width = Math.min(100, Math.max(2, (plp / TARGET_PCT) * 100)) + '%';
+        bar.className = 'plbar-fill ' + (plp >= 0 ? 'up' : 'dn');
+      }
+    }
+  } catch (e) {}
+}
+
+// One-click handlers via delegation (cards re-render dynamically).
+grid.addEventListener('click', e => {
+  const sell = e.target.closest('.sell-click');
+  const cancel = e.target.closest('.cancel-click');
+  if (sell) {
+    const t = sell.dataset.ticker, rec = cardEls[t], c = rec?.data || {};
+    const pl = rec?.el.querySelector('.live-pl')?.textContent || '—';
+    tradeModal({
+      title: `Sell ALL ${t}?`, icon: '💰', danger: true,
+      rows: [['Company', NAMES[t] || t], ['Ticker', t],
+             ['Shares', c.qty || 0], ['Current P&L', pl],
+             ['Order', 'sell entire position @ best ask']],
+      note: 'Queues your approval — the engine sells at the next opportunity ' +
+            '(market hours), then this slot frees up.',
+      okLabel: 'Confirm SELL ALL',
+      onConfirm: async () => {
+        if (await queueCommand('APPROVE_SELL_ALL', t, CSRF)) {
+          PENDING.push({t, a: 'APPROVE_SELL_ALL'}); renderAll();
+        } else { alert('Could not queue — try again.'); }
+      }
+    });
+  } else if (cancel) {
+    const t = cancel.dataset.ticker;
     tradeModal({
       title: `Cancel ${t} campaign?`, icon: '🗑️', danger: true,
       rows: [['Ticker', t], ['Shares held', '0'],
@@ -159,34 +224,17 @@ document.querySelectorAll('.cancel-click').forEach(btn => {
       okLabel: 'Cancel campaign',
       onConfirm: async () => {
         if (await queueCommand('CANCEL_CAMPAIGN', t, CSRF)) {
-          lockButton(btn, 'Cancellation queued');
+          PENDING.push({t, a: 'CANCEL_CAMPAIGN'}); renderAll();
         } else { alert('Could not queue — try again.'); }
       }
     });
-  });
+  }
 });
 
-document.querySelectorAll('.sell-click').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const t = btn.dataset.ticker;
-    const card = btn.closest('.mon-card');
-    const pl = card.querySelector('.live-pl').textContent;
-    tradeModal({
-      title: `Sell ALL ${t}?`, icon: '💰', danger: true,
-      rows: [['Company', btn.dataset.name], ['Ticker', t],
-             ['Shares', card.dataset.qty], ['Current P&L', pl],
-             ['Order', 'sell entire position @ best ask']],
-      note: 'Queues your approval — the engine sells on its next tick, then this ' +
-            'stock unlocks for future buys.',
-      okLabel: 'Confirm SELL ALL',
-      onConfirm: async () => {
-        if (await queueCommand('APPROVE_SELL_ALL', t, CSRF)) {
-          lockButton(btn, 'Sell queued — engine will exit on next tick');
-        } else { alert('Could not queue — try again.'); }
-      }
-    });
-  });
-});
+renderAll(true);
+liveQuotes();
+setInterval(liveQuotes, 10000);
+setInterval(syncCampaigns, 10000);
 </script>
 </body>
 </html>

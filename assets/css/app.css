@@ -288,6 +288,20 @@ table.mkt{width:100%; border-collapse:collapse; font-size:12.5px; min-width:920p
 @keyframes rowin{from{opacity:0; transform:translateY(6px)}to{opacity:1; transform:none}}
 .hi52{color:var(--ok); font-size:10px}
 
+/* ---- Monitor live-morph animations (v14) ---- */
+.mon-card{transition:opacity .26s ease, transform .26s ease, box-shadow .5s ease}
+.card-enter{animation:cardenter .6s cubic-bezier(.2,.9,.3,1.15) both}
+@keyframes cardenter{from{opacity:0; transform:translateY(22px) scale(.97)}
+  to{opacity:1; transform:none}}
+.card-morph{opacity:0; transform:scale(.985)}
+.card-exit{opacity:0; transform:translateY(14px) scale(.97)}
+.card-activate{border-color:rgba(52,211,153,.65) !important;
+  box-shadow:0 0 0 1px rgba(52,211,153,.5), 0 14px 44px rgba(52,211,153,.22);
+  animation:activatepulse 1.5s ease}
+@keyframes activatepulse{0%{box-shadow:0 0 0 0 rgba(52,211,153,.55)}
+  60%{box-shadow:0 0 0 16px rgba(52,211,153,0)}
+  100%{box-shadow:0 0 0 1px rgba(52,211,153,.5), 0 14px 44px rgba(52,211,153,.22)}}
+
 /* ---- top bar (v9) ---- */
 body{display:block; padding:0}
 main.hero{margin:26px auto 40px; padding:0 20px}
