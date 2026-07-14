@@ -13,6 +13,7 @@ foreach (docs_all('campaign_') as $k => $c) {
 }
 $pending = [];
 foreach (commands_pending() as $cmd) { $pending[] = ['t' => $cmd['ticker'], 'a' => $cmd['action']]; }
+$marks = doc_get('broker_marks');
 $names = [];
 foreach ((doc_get('candidates')['data'] ?? []) as $c) { $names[$c['ticker']] = $c['name'] ?? $c['ticker']; }
 $csrf = csrf_token();
@@ -24,13 +25,13 @@ $NAV_ACTIVE = 'mon';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Monitor — Trading AI Horizon</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=14">
+<link rel="stylesheet" href="assets/css/app.css?v=15">
 </head>
 <body>
 <div class="bg"></div>
 <?php $NAV_ACTIVE = 'mon'; require __DIR__ . '/inc/nav.php'; ?>
 <main class="hero wide">
-  <div class="badge"><span class="livedot"></span> LIVE MONITOR · positions &amp; prices sync automatically</div>
+  <div class="badge"><span class="livedot"></span> MOOMOO OPEN D · broker positions &amp; marks sync automatically</div>
   <h1 class="pagetitle" style="font-size:32px">Position Monitor</h1>
 
   <section class="card" id="emptyState" hidden>
@@ -40,7 +41,7 @@ $NAV_ACTIVE = 'mon';
   </section>
 
   <div class="mon-grid" id="monGrid"></div>
-  <footer class="foot">campaign state syncs every ~10s · prices live · P&amp;L computed in your browser</footer>
+  <footer class="foot">Moomoo OpenD marks sync about every 10s · P&amp;L uses Moomoo last price</footer>
 </main>
 <?php require __DIR__ . '/inc/modal.php'; ?>
 <script>
@@ -52,11 +53,24 @@ const LIMITS = 'limits: +<?= round($settings['profit_alert_pct'] * 100) ?>% aler
 
 let CAMPS = <?= json_encode($campaigns) ?>;
 let PENDING = <?= json_encode($pending) ?>;
+let MARKS = <?= json_encode($marks) ?>;
+const MARK_STALE_MS = 35000;
 const grid = document.getElementById('monGrid');
 const fmt = (n, d = 2) => Number(n || 0).toLocaleString('en-US',
     {minimumFractionDigits: d, maximumFractionDigits: d});
 const pendingHas = (t, a) => PENDING.some(p => p.t === t && p.a === a);
 const showable = c => (c.status === 'ACTIVE' || (c.qty || 0) > 0);
+
+function brokerMark(t) {
+  const feed = MARKS && MARKS.data;
+  const mark = feed && feed.quotes && feed.quotes[t];
+  if (!mark) return {ok: false, reason: 'waiting for Moomoo OpenD'};
+  const published = Date.parse(feed.published_at || '');
+  if (!published || Date.now() - published > MARK_STALE_MS) {
+    return {ok: false, reason: 'Moomoo feed stale — P/L hidden'};
+  }
+  return {ok: true, mark};
+}
 
 function cardHTML(c) {
   const t = c.ticker, qty = c.qty || 0;
@@ -132,7 +146,7 @@ function renderAll(animateNew = false) {
           rec.el.classList.add('card-activate');
           setTimeout(() => rec.el.classList.remove('card-activate'), 1600);
         }
-        liveQuotes();
+        renderBrokerMarks();
       }, 260);
       rec.sig = s;
       rec.qty = c.qty || 0;
@@ -152,11 +166,63 @@ function renderAll(animateNew = false) {
 async function syncCampaigns() {
   try {
     const j = await (await fetch('api/campaigns.php')).json();
-    if (j.campaigns) { CAMPS = j.campaigns; PENDING = j.pending || []; renderAll(); }
+    if (j.campaigns) {
+      CAMPS = j.campaigns;
+      PENDING = j.pending || [];
+      MARKS = j.broker_marks || null;
+      renderAll();
+      renderBrokerMarks();
+    }
   } catch (e) { /* offline — keep last */ }
 }
 
+function renderBrokerMarks() {
+  for (const t of Object.keys(cardEls)) {
+    const rec = cardEls[t], el = rec.el, live = brokerMark(t);
+    const px = el.querySelector('.live-px');
+    const note = el.querySelector('p.muted.small');
+    const chg = el.querySelector('.live-chg');
+    const plEl = el.querySelector('.live-pl');
+    const pp = el.querySelector('.live-plpct');
+    const value = el.querySelector('.live-val');
+    if (!live.ok) {
+      px.textContent = '—';
+      chg.textContent = live.reason;
+      plEl.textContent = '—'; plEl.className = 'live-pl bad';
+      pp.textContent = 'Moomoo feed required'; pp.className = 'live-plpct bad';
+      value.textContent = '—';
+      note.textContent = live.reason + ' · ' + LIMITS;
+      continue;
+    }
+    const q = live.mark, avg = Number(q.avg_cost || 0);
+    const old = parseFloat(px.textContent.replace(/[$,]/g, ''));
+    px.textContent = '$' + fmt(q.price);
+    if (old && Math.abs(old - q.price) > 0.004) {
+      px.classList.remove('flash-up', 'flash-dn'); void px.offsetWidth;
+      px.classList.add(q.price > old ? 'flash-up' : 'flash-dn');
+    }
+    const pl = Number(q.pnl);
+    const plp = avg > 0 ? (q.price / avg - 1) * 100 : 0;
+    chg.textContent = 'Moomoo last · ' + (q.quote_time || 'timestamp unavailable');
+    chg.className = 'live-chg ok';
+    plEl.textContent = (pl >= 0 ? '+$' : '−$') + fmt(Math.abs(pl));
+    plEl.className = 'live-pl ' + (pl >= 0 ? 'ok' : 'bad');
+    pp.textContent = (plp >= 0 ? '+' : '') + plp.toFixed(2) + '%';
+    pp.className = 'live-plpct ' + (plp >= 0 ? 'ok' : 'bad');
+    value.textContent = '$' + fmt(q.value);
+    const bar = el.querySelector('.plbar-fill');
+    bar.style.width = Math.min(100, Math.max(2, (plp / TARGET_PCT) * 100)) + '%';
+    bar.className = 'plbar-fill ' + (plp >= 0 ? 'up' : 'dn');
+    note.textContent = 'Moomoo OpenD · last price · ' + (q.quote_time || 'timestamp unavailable') +
+      ' · ' + LIMITS;
+  }
+}
+
 async function liveQuotes() {
+  renderBrokerMarks();
+  return; // Monitor P/L is broker-authoritative; never fetch Yahoo here.
+  /* Retired Yahoo implementation retained only as a migration note. It is not
+     executable: Monitor marks must come exclusively from Moomoo OpenD. */
   const tickers = Object.keys(cardEls);
   if (!tickers.length) return;
   try {
@@ -232,7 +298,7 @@ grid.addEventListener('click', e => {
 });
 
 renderAll(true);
-liveQuotes();
+renderBrokerMarks();
 setInterval(liveQuotes, 10000);
 setInterval(syncCampaigns, 10000);
 </script>

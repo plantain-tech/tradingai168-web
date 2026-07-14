@@ -15,4 +15,6 @@ foreach (docs_all('campaign_') as $k => $c) {
 }
 $pend = [];
 foreach (commands_pending() as $cmd) { $pend[] = ['t' => $cmd['ticker'], 'a' => $cmd['action']]; }
-echo json_encode(['campaigns' => $out, 'pending' => $pend]);
+$marks = doc_get('broker_marks');
+echo json_encode(['campaigns' => $out, 'pending' => $pend,
+                  'broker_marks' => $marks ?: null]);
