@@ -44,7 +44,7 @@ $NAV_ACTIVE = 'dash';
 <main class="hero wide">
   <?php $top10 = array_slice($candDoc['data'] ?? [], 0, 10);
         if ($top10): ?>
-  <div class="ticker"><div class="ticker-track">
+  <div class="ticker" title="Yahoo Finance reference prices; refreshes without reloading this page"><div class="ticker-track">
     <?php foreach ([0, 1] as $copy): ?>
       <?php foreach ($top10 as $c): $t = htmlspecialchars($c['ticker']); ?>
       <span class="tk"><b><?= $t ?></b>
@@ -176,12 +176,13 @@ $NAV_ACTIVE = 'dash';
 const CSRF = '<?= $csrf ?>';
 const TRANCHE = <?= (int) $settings['tranche_base'] ?>;
 
-// ---- live ticker ----
+// ---- Yahoo reference ticker: updates in place; Monitor broker marks stay separate. ----
 const tickers = [...new Set([...document.querySelectorAll('.tk-px')].map(e => e.dataset.t))];
 async function refreshQuotes() {
   if (!tickers.length) return;
   try {
-    const r = await fetch('api/quotes.php?t=' + tickers.join(','));
+    const r = await fetch('api/market_quotes.php?t=' + tickers.join(','));
+    if (!r.ok) throw new Error('quote endpoint unavailable');
     const j = await r.json();
     for (const [t, q] of Object.entries(j.quotes || {})) {
       document.querySelectorAll(`.tk-px[data-t="${t}"]`).forEach(e => {
