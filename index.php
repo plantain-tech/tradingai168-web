@@ -36,7 +36,7 @@ $NAV_ACTIVE = 'dash';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Trading AI Horizon — Dashboard</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=15">
+<link rel="stylesheet" href="assets/css/app.css?v=16">
 </head>
 <body>
 <div class="bg"></div>
@@ -46,8 +46,10 @@ $NAV_ACTIVE = 'dash';
         if ($top10): ?>
   <div class="ticker" title="Yahoo Finance reference prices; refreshes without reloading this page"><div class="ticker-track">
     <?php foreach ([0, 1] as $copy): ?>
-      <?php foreach ($top10 as $c): $t = htmlspecialchars($c['ticker']); ?>
-      <span class="tk"><b><?= $t ?></b>
+      <?php foreach ($top10 as $c): $t = htmlspecialchars($c['ticker']);
+            $yahoo = 'https://finance.yahoo.com/quote/' . rawurlencode($c['ticker']); ?>
+      <span class="tk"><a class="stock-link" href="<?= $yahoo ?>" target="_blank" rel="noopener noreferrer"
+          title="Open <?= $t ?> on Yahoo Finance"><b><?= $t ?></b></a>
         <span class="tk-px" data-t="<?= $t ?>">$<?= number_format((float) $c['price'], 2) ?></span>
         <em class="tk-chg" data-t="<?= $t ?>"></em></span>
       <?php endforeach; ?>

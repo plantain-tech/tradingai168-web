@@ -15,7 +15,7 @@ $NAV_ACTIVE = 'mkt';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Markets — Trading AI Horizon</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=15">
+<link rel="stylesheet" href="assets/css/app.css?v=16">
 </head>
 <body>
 <div class="bg"></div>
@@ -101,6 +101,16 @@ function render() {
       <td class="num">$${fmt(r.hi)}</td>
       <td class="num">$${fmt(r.lo)}</td></tr>`;
   }).join('');
+  body.querySelectorAll('tr[data-t] .tkc b').forEach(b => {
+    const t = b.closest('tr').dataset.t;
+    const a = document.createElement('a');
+    a.className = 'stock-link';
+    a.href = 'https://finance.yahoo.com/quote/' + encodeURIComponent(t);
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    a.title = 'Open ' + t + ' on Yahoo Finance';
+    b.replaceWith(a); a.appendChild(b);
+  });
   liveTick();                                          // refresh new view immediately
 }
 
