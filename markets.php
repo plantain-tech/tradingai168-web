@@ -21,7 +21,7 @@ $NAV_ACTIVE = 'mkt';
 <div class="bg"></div>
 <?php require __DIR__ . '/inc/nav.php'; ?>
 <main class="hero" style="max-width:1100px">
-  <div class="badge"><span class="livedot"></span> ETF UNIVERSE · DOW 30 + NASDAQ-100 + S&amp;P 500 · LIVE</div>
+  <div class="badge"><span class="livedot"></span> ETF UNIVERSE · DOW 30 + NASDAQ-100 + S&amp;P 500 · RESEARCH</div>
   <h1 class="pagetitle" style="font-size:32px">Markets</h1>
 
   <?php if (!$rows): ?>
@@ -54,10 +54,10 @@ $NAV_ACTIVE = 'mkt';
         <tbody id="mktBody"></tbody>
       </table>
     </div>
-    <p class="muted small" style="margin-top:10px">Prices for the rows in view
-      refresh live every ~12s (same feed as the ticker); P/E and market cap are
-      re-derived from the live price. MA/52wk/P&#8203;/B refresh daily via the engine
-      service. "—" = fundamental unavailable from the free feed.</p>
+    <p class="muted small" id="marketFeed" style="margin-top:10px">Visible prices refresh
+      best-effort every ~12s from Yahoo Finance public data; not broker-real-time.
+      P/E and market cap are re-derived from that price. MA/52wk/P&#8203;/B refresh daily.
+      "—" = fundamental unavailable from the free feed.</p>
   </section>
   <?php endif; ?>
   <footer class="foot">the same universe the AI screener hunts in</footer>
@@ -104,13 +104,15 @@ function render() {
   liveTick();                                          // refresh new view immediately
 }
 
-// ---- live price sync for the rows in view (~12s, same feed as the ticker) ----
+// ---- best-effort Yahoo reference-price sync for the rows in view (~12s) ----
 let liveSet = [];
 const BASE = Object.fromEntries(ROWS.map(r => [r.t, r]));
+const marketFeed = document.getElementById('marketFeed');
 async function liveTick() {
   if (!liveSet.length) return;
   try {
-    const r = await fetch('api/quotes.php?t=' + liveSet.join(','));
+    const r = await fetch('api/market_quotes.php?t=' + liveSet.join(','));
+    if (!r.ok) throw new Error('quote endpoint unavailable');
     const j = await r.json();
     for (const [t, q] of Object.entries(j.quotes || {})) {
       const tr = body.querySelector(`tr[data-t="${t}"]`);
@@ -133,7 +135,13 @@ async function liveTick() {
         tr.querySelector('.m-mc').textContent = mcap(base.mc * q.price / base.p);
       }
     }
-  } catch (e) { /* offline — keep last values */ }
+    if (marketFeed) marketFeed.textContent = j.partial
+      ? 'Yahoo reference quote update was partial — some rows retain the daily snapshot.'
+      : 'Yahoo Finance reference prices updated · not broker-real-time.';
+  } catch (e) {
+    if (marketFeed) marketFeed.textContent =
+      'Yahoo reference quote refresh unavailable — showing the daily research snapshot.';
+  }
 }
 setInterval(liveTick, 12000);
 document.querySelectorAll('th.sortable').forEach(th => {
