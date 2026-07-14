@@ -58,6 +58,10 @@ const MARK_STALE_MS = 35000;
 const grid = document.getElementById('monGrid');
 const fmt = (n, d = 2) => Number(n || 0).toLocaleString('en-US',
     {minimumFractionDigits: d, maximumFractionDigits: d});
+const quoteMinute = s => {
+  const m = String(s || '').match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2})/);
+  return m ? m[1] : (s || 'timestamp unavailable');
+};
 const pendingHas = (t, a) => PENDING.some(p => p.t === t && p.a === a);
 const showable = c => (c.status === 'ACTIVE' || (c.qty || 0) > 0);
 
@@ -203,7 +207,7 @@ function renderBrokerMarks() {
     }
     const pl = Number(q.pnl);
     const plp = avg > 0 ? (q.price / avg - 1) * 100 : 0;
-    chg.textContent = 'Moomoo last · ' + (q.quote_time || 'timestamp unavailable');
+    chg.textContent = 'Moomoo last · ' + quoteMinute(q.quote_time);
     chg.className = 'live-chg ok';
     plEl.textContent = (pl >= 0 ? '+$' : '−$') + fmt(Math.abs(pl));
     plEl.className = 'live-pl ' + (pl >= 0 ? 'ok' : 'bad');
@@ -213,7 +217,7 @@ function renderBrokerMarks() {
     const bar = el.querySelector('.plbar-fill');
     bar.style.width = Math.min(100, Math.max(2, (plp / TARGET_PCT) * 100)) + '%';
     bar.className = 'plbar-fill ' + (plp >= 0 ? 'up' : 'dn');
-    note.textContent = 'Moomoo OpenD · last price · ' + (q.quote_time || 'timestamp unavailable') +
+    note.textContent = 'Moomoo OpenD · last price · ' + quoteMinute(q.quote_time) +
       ' · ' + LIMITS;
   }
 }
