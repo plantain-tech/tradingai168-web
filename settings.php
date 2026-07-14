@@ -17,9 +17,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'tranche_base'     => max(1, (int) $f('tranche_base', 20)),
             'tranche_step'     => max(0, (int) $f('tranche_step', 5)),
             'dca_gap_bdays'    => max(1, (int) $f('dca_gap_bdays', 5)),
-            'profit_alert_pct' => max(0.01, $f('profit_alert_pct', 15) / 100.0),
-            'loss_alert_usd'   => max(1, $f('loss_alert_usd', 1500)),
-            'loss_urgent_usd'  => max(1, $f('loss_urgent_usd', 2250)),
+            'profit_alert_pct' => max(0.01, $f('profit_alert_pct', 9) / 100.0),
+            'loss_alert_usd'   => max(1, $f('loss_alert_usd', 1400)),
+            'loss_urgent_usd'  => max(1, $f('loss_urgent_usd', 2100)),
             'fill_wait_s'      => max(5, (int) $f('fill_wait_s', 45)),
         ];
         if ($s['loss_urgent_usd'] < $s['loss_alert_usd']) {

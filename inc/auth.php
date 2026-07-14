@@ -66,16 +66,37 @@ function default_settings(): array {
     return [
         'budget_usd' => 15000, 'max_concurrent' => 3,
         'tranche_base' => 20, 'tranche_step' => 5, 'dca_gap_bdays' => 5,
-        'profit_alert_pct' => 0.15, 'loss_alert_usd' => 1500,
-        'loss_urgent_usd' => 2250, 'fill_wait_s' => 45,
+        'profit_alert_pct' => 0.09, 'loss_alert_usd' => 1400,
+        'loss_urgent_usd' => 2100, 'fill_wait_s' => 45,
         'ai_model' => 'gpt-oss:20b', 'ollama_host' => 'cloud',
     ];
 }
 
 function get_settings(): array {
     $out = default_settings();
-    foreach (db()->query("SELECT k, v FROM app_settings")->fetchAll() as $r) {
-        $out[$r['k']] = json_decode($r['v'], true);
+    $pdo = db();
+    $stored = [];
+    foreach ($pdo->query("SELECT k, v FROM app_settings")->fetchAll() as $r) {
+        $stored[$r['k']] = json_decode($r['v'], true);
+    }
+
+    // One-time migration of the former platform default (+15%) to the
+    // approved +9% profit-alert rule. A marker means a later user-selected
+    // 15% is respected rather than silently changed again.
+    if (empty($stored['risk_rules_v2'])) {
+        if (isset($stored['profit_alert_pct'])
+                && abs((float) $stored['profit_alert_pct'] - 0.15) < 0.000001) {
+            $pdo->prepare("UPDATE app_settings SET v = ? WHERE k = 'profit_alert_pct'")
+                ->execute([json_encode(0.09)]);
+            $stored['profit_alert_pct'] = 0.09;
+        }
+        $pdo->prepare("INSERT INTO app_settings (k, v) VALUES ('risk_rules_v2', ?)
+                       ON DUPLICATE KEY UPDATE v = VALUES(v)")
+            ->execute([json_encode(true)]);
+    }
+
+    foreach ($stored as $k => $v) {
+        if ($k !== 'risk_rules_v2') { $out[$k] = $v; }
     }
     return $out;
 }
