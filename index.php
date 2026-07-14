@@ -36,7 +36,7 @@ $NAV_ACTIVE = 'dash';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Trading AI Horizon — Dashboard</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=16">
+<link rel="stylesheet" href="assets/css/app.css?v=17">
 </head>
 <body>
 <div class="bg"></div>
@@ -152,6 +152,7 @@ $NAV_ACTIVE = 'dash';
   <?php endif; ?>
 
   <footer class="foot">Trading AI Horizon · momentum engine · you approve, it executes</footer>
+  <?php require __DIR__ . '/inc/brand_footer.php'; ?>
 </main>
 
 <!-- Analyze overlay -->

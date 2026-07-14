@@ -15,7 +15,7 @@ $NAV_ACTIVE = 'mkt';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Markets — Trading AI Horizon</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=16">
+<link rel="stylesheet" href="assets/css/app.css?v=17">
 </head>
 <body>
 <div class="bg"></div>
@@ -61,6 +61,7 @@ $NAV_ACTIVE = 'mkt';
   </section>
   <?php endif; ?>
   <footer class="foot">the same universe the AI screener hunts in</footer>
+  <?php require __DIR__ . '/inc/brand_footer.php'; ?>
 </main>
 <script>
 const ROWS = <?= json_encode($rows) ?>;
