@@ -225,6 +225,7 @@ select.in option{background:#12172a; color:var(--ink)}
 /* ---- monitor page ---- */
 .livedot{display:inline-block; width:7px; height:7px; border-radius:50%;
   background:var(--ok); margin-right:6px; animation:pulse 2s infinite; vertical-align:1px}
+.livedot.bad-dot{background:var(--bad); box-shadow:0 0 10px var(--bad); animation:none}
 .mon-grid{display:grid; gap:18px}
 .mon-card{animation:rise .5s ease both}
 .mon-head{display:flex; justify-content:space-between; align-items:flex-start;

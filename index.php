@@ -36,7 +36,7 @@ $NAV_ACTIVE = 'dash';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Trading AI Horizon — Dashboard</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=19">
+<link rel="stylesheet" href="assets/css/app.css?v=20">
 </head>
 <body>
 <div class="bg"></div>

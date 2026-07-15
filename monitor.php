@@ -14,6 +14,7 @@ foreach (docs_all('campaign_') as $k => $c) {
 $pending = [];
 foreach (commands_pending() as $cmd) { $pending[] = ['t' => $cmd['ticker'], 'a' => $cmd['action']]; }
 $marks = doc_get('broker_marks');
+$engineHealth = doc_get('engine_health');
 $names = [];
 foreach ((doc_get('candidates')['data'] ?? []) as $c) { $names[$c['ticker']] = $c['name'] ?? $c['ticker']; }
 $csrf = csrf_token();
@@ -25,13 +26,14 @@ $NAV_ACTIVE = 'mon';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Monitor — Trading AI Horizon</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=19">
+<link rel="stylesheet" href="assets/css/app.css?v=20">
 </head>
 <body>
 <div class="bg"></div>
 <?php $NAV_ACTIVE = 'mon'; require __DIR__ . '/inc/nav.php'; ?>
 <main class="hero wide">
-  <div class="badge"><span class="livedot"></span> MOOMOO OPEN D · broker positions &amp; marks sync automatically</div>
+  <div class="badge" id="engineBadge"><span class="livedot" id="engineDot"></span>
+    <span id="engineStatus">Checking PC engine status…</span></div>
   <h1 class="pagetitle" style="font-size:32px">Position Monitor</h1>
 
   <section class="card" id="emptyState" hidden>
@@ -55,6 +57,7 @@ const LIMITS = 'limits: +<?= round($settings['profit_alert_pct'] * 100) ?>% aler
 let CAMPS = <?= json_encode($campaigns) ?>;
 let PENDING = <?= json_encode($pending) ?>;
 let MARKS = <?= json_encode($marks) ?>;
+let ENGINE_HEALTH = <?= json_encode($engineHealth) ?>;
 const MARK_STALE_MS = 35000;
 const grid = document.getElementById('monGrid');
 const fmt = (n, d = 2) => Number(n || 0).toLocaleString('en-US',
@@ -65,6 +68,22 @@ const quoteMinute = s => {
 };
 const pendingHas = (t, a) => PENDING.some(p => p.t === t && p.a === a);
 const showable = c => (c.status === 'ACTIVE' || (c.qty || 0) > 0);
+
+function renderEngineHealth() {
+  const h = ENGINE_HEALTH && ENGINE_HEALTH.data;
+  const status = document.getElementById('engineStatus');
+  const dot = document.getElementById('engineDot');
+  const seen = h ? Date.parse(h.last_seen_at || '') : 0;
+  const staleAfter = Number(h?.stale_after_seconds || 35) * 1000;
+  const offline = !h || h.status !== 'running' || !seen || Date.now() - seen > staleAfter;
+  dot.classList.toggle('bad-dot', offline);
+  if (offline) {
+    status.textContent = 'PC ENGINE OFFLINE · Moomoo tracking & auto-trading paused';
+    return;
+  }
+  const mode = h.mode === 'REAL' ? 'REAL' : 'PAPER';
+  status.textContent = `MOOMOO OPEN D · ${mode} engine running · marks sync automatically`;
+}
 
 function brokerMark(t) {
   const feed = MARKS && MARKS.data;
@@ -175,8 +194,10 @@ async function syncCampaigns() {
       CAMPS = j.campaigns;
       PENDING = j.pending || [];
       MARKS = j.broker_marks || null;
+      ENGINE_HEALTH = j.engine_health || null;
       renderAll();
       renderBrokerMarks();
+      renderEngineHealth();
     }
   } catch (e) { /* offline — keep last */ }
 }
@@ -304,8 +325,10 @@ grid.addEventListener('click', e => {
 
 renderAll(true);
 renderBrokerMarks();
+renderEngineHealth();
 setInterval(liveQuotes, 10000);
 setInterval(syncCampaigns, 10000);
+setInterval(renderEngineHealth, 10000);
 </script>
 </body>
 </html>
