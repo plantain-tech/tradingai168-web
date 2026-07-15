@@ -18,23 +18,23 @@ $engineHealth = doc_get('engine_health');
 $names = [];
 foreach ((doc_get('candidates')['data'] ?? []) as $c) { $names[$c['ticker']] = $c['name'] ?? $c['ticker']; }
 $csrf = csrf_token();
-$NAV_ACTIVE = 'mon';
+$NAV_ACTIVE = 'auto-paper';
 ?>
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Monitor — Trading AI Horizon</title>
+<title>AI Auto Trade · Paper — Trading AI Horizon</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=22">
+<link rel="stylesheet" href="assets/css/app.css?v=23">
 </head>
 <body>
 <div class="bg"></div>
-<?php $NAV_ACTIVE = 'mon'; require __DIR__ . '/inc/nav.php'; ?>
+<?php $NAV_ACTIVE = 'auto-paper'; require __DIR__ . '/inc/nav.php'; ?>
 <main class="hero wide">
   <div class="badge" id="engineBadge"><span class="livedot" id="engineDot"></span>
     <span id="engineStatus">Checking PC engine status…</span></div>
-  <h1 class="pagetitle" style="font-size:32px">Position Monitor</h1>
+  <h1 class="pagetitle" style="font-size:32px">AI Auto Trade · Paper</h1>
 
   <section class="card" id="emptyState" hidden>
     <h2>No positions being auto-traded yet</h2>
@@ -43,7 +43,7 @@ $NAV_ACTIVE = 'mon';
   </section>
 
   <div class="mon-grid" id="monGrid"></div>
-  <footer class="foot">Moomoo OpenD marks sync about every 10s · P&amp;L uses Moomoo last price</footer>
+  <footer class="foot">Moomoo Paper Trading · marks sync about every 10s · P&amp;L uses Moomoo last price</footer>
   <?php require __DIR__ . '/inc/brand_footer.php'; ?>
 </main>
 <?php require __DIR__ . '/inc/modal.php'; ?>

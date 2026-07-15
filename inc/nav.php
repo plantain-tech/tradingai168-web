@@ -73,9 +73,26 @@ $NAV_ACTIVE = $NAV_ACTIVE ?? ''; ?>
       <a href="index.php" class="<?= $NAV_ACTIVE === 'dash' ? 'on' : '' ?>">
         <svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
         Dashboard</a>
-      <a href="monitor.php" class="<?= $NAV_ACTIVE === 'mon' ? 'on' : '' ?>">
-        <svg viewBox="0 0 24 24"><path d="M3 3v18h18v-2H5V3H3zm18 4-6 6-4-4-5 5 1.4 1.4L11 12l4 4 7.4-7.4L21 7z"/></svg>
-        Monitor</a>
+      <div class="tb-menu">
+        <button type="button" class="tb-menu-trigger <?= in_array($NAV_ACTIVE, ['auto-paper', 'auto-live'], true) ? 'on' : '' ?>"
+                aria-haspopup="true" aria-expanded="false">
+          <svg width="15" height="15" viewBox="0 0 24 24"><path d="M3 3v18h18v-2H5V3H3zm18 4-6 6-4-4-5 5 1.4 1.4L11 12l4 4 7.4-7.4L21 7z"/></svg>
+          Auto Trade
+          <svg class="tb-chevron" width="10" height="15" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5z"/></svg>
+        </button>
+        <div class="tb-submenu">
+          <div class="tb-submenu-panel">
+            <a href="monitor.php" class="<?= $NAV_ACTIVE === 'auto-paper' ? 'on' : '' ?>">
+              <svg width="16" height="16" viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3H4V5zm0 5h16v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-9zm5 3v2h6v-2H9z"/></svg>
+              <span><b>Paper</b><small>Moomoo SIM</small></span>
+            </a>
+            <a href="auto_trade_live.php" class="<?= $NAV_ACTIVE === 'auto-live' ? 'on' : '' ?>">
+              <svg width="16" height="16" viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7v3H3v9h18v-9h-2V9a7 7 0 0 0-7-7zm-5 10V9a5 5 0 0 1 10 0v3H7zm5 3a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"/></svg>
+              <span><b>Live</b><small>Preparation only</small></span>
+            </a>
+          </div>
+        </div>
+      </div>
       <a href="markets.php" class="<?= $NAV_ACTIVE === 'mkt' ? 'on' : '' ?>">
         <svg viewBox="0 0 24 24"><path d="M3 5v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2zm2 0h14v3H5V5zm0 5h6v9H5v-9zm8 0h6v9h-6v-9z"/></svg>
         Markets</a>
@@ -110,18 +127,21 @@ $NAV_ACTIVE = $NAV_ACTIVE ?? ''; ?>
 </header>
 <script>
 (() => {
-  const menu = document.querySelector('.tb-menu');
-  const trigger = menu?.querySelector('.tb-menu-trigger');
-  if (!menu || !trigger) return;
-  const setOpen = open => {
+  const menus = [...document.querySelectorAll('.tb-menu')];
+  const setOpen = (menu, open) => {
     menu.classList.toggle('is-open', open);
-    trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+    menu.querySelector('.tb-menu-trigger')?.setAttribute('aria-expanded', open ? 'true' : 'false');
   };
-  trigger.addEventListener('click', e => {
+  menus.forEach(menu => menu.querySelector('.tb-menu-trigger')?.addEventListener('click', e => {
     e.stopPropagation();
-    setOpen(!menu.classList.contains('is-open'));
+    const next = !menu.classList.contains('is-open');
+    menus.forEach(other => setOpen(other, other === menu && next));
+  }));
+  document.addEventListener('click', e => {
+    if (!menus.some(menu => menu.contains(e.target))) menus.forEach(menu => setOpen(menu, false));
   });
-  document.addEventListener('click', e => { if (!menu.contains(e.target)) setOpen(false); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') setOpen(false); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') menus.forEach(menu => setOpen(menu, false));
+  });
 })();
 </script>
