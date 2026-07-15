@@ -1,5 +1,62 @@
 <?php if (!defined('APP')) { http_response_code(403); exit('Forbidden'); }
 $NAV_ACTIVE = $NAV_ACTIVE ?? ''; ?>
+<style>
+/* Component-critical rules live with this shared navigation markup. Hostinger
+   may briefly serve a cached parent PHP page with an older app.css version;
+   keeping these rules here prevents mixed-version menu layout breakage. */
+.tb-nav .tb-menu{position:relative; display:block; flex:0 0 auto}
+.tb-nav .tb-menu-trigger{display:flex!important; align-items:center!important;
+  justify-content:center!important; gap:7px!important; width:auto!important;
+  min-width:0!important; min-height:34px!important; height:34px!important;
+  margin:0!important; padding:8px 14px!important; border:0!important;
+  border-radius:10px!important; background:transparent!important;
+  color:var(--muted)!important; font:13px 'Segoe UI',system-ui,-apple-system,sans-serif!important;
+  line-height:1!important; white-space:nowrap!important; cursor:pointer!important;
+  box-shadow:none!important; appearance:none!important; -webkit-appearance:none!important}
+.tb-nav .tb-menu-trigger:hover{color:var(--ink)!important;
+  background:rgba(255,255,255,.05)!important}
+.tb-nav .tb-menu-trigger.on{color:var(--ink)!important;
+  background:linear-gradient(100deg,rgba(99,102,241,.22),rgba(34,211,238,.18))!important;
+  box-shadow:inset 0 0 0 1px rgba(99,102,241,.35)!important}
+.tb-nav .tb-menu-trigger svg{display:block!important; width:15px!important;
+  min-width:15px!important; max-width:15px!important; height:15px!important;
+  min-height:15px!important; max-height:15px!important; fill:currentColor!important;
+  opacity:.8!important; flex:0 0 15px!important}
+.tb-nav .tb-menu-trigger .tb-chevron{width:10px!important; min-width:10px!important;
+  max-width:10px!important; flex-basis:10px!important; margin-left:-2px!important}
+.tb-nav .tb-submenu{display:block!important; visibility:hidden!important;
+  opacity:0!important; pointer-events:none!important; position:absolute!important;
+  top:100%!important; left:50%!important; width:176px!important; height:auto!important;
+  padding:8px 0 0!important; margin:0!important; transform:translate(-50%,5px)!important;
+  z-index:80!important; transition:opacity .14s ease,transform .14s ease,visibility .14s!important}
+.tb-nav .tb-menu:hover .tb-submenu,.tb-nav .tb-menu:focus-within .tb-submenu,
+.tb-nav .tb-menu.is-open .tb-submenu{visibility:visible!important; opacity:1!important;
+  pointer-events:auto!important; transform:translate(-50%,0)!important}
+.tb-nav .tb-submenu-panel{display:grid!important; gap:3px!important; padding:7px!important;
+  border:1px solid var(--line)!important; border-radius:13px!important;
+  background:rgba(15,20,35,.98)!important; box-shadow:0 18px 48px rgba(0,0,0,.45)!important}
+.tb-nav .tb-submenu a{display:flex!important; align-items:center!important; gap:10px!important;
+  height:auto!important; min-height:42px!important; padding:8px 10px!important;
+  border-radius:9px!important; background:transparent!important; color:var(--muted)!important;
+  text-decoration:none!important; box-shadow:none!important}
+.tb-nav .tb-submenu a:hover,.tb-nav .tb-submenu a.on{color:var(--ink)!important;
+  background:rgba(255,255,255,.06)!important}
+.tb-nav .tb-submenu a.on{box-shadow:inset 3px 0 0 var(--brand2)!important}
+.tb-nav .tb-submenu a svg{display:block!important; width:16px!important; height:16px!important;
+  min-width:16px!important; max-width:16px!important; flex:0 0 16px!important;
+  fill:currentColor!important}
+.tb-nav .tb-submenu span{display:grid!important; gap:1px!important; text-align:left!important}
+.tb-nav .tb-submenu b{font-size:13px!important; line-height:1.2!important}
+.tb-nav .tb-submenu small{font-size:10px!important; line-height:1.2!important;
+  color:var(--muted)!important; font-weight:400!important}
+@media(max-width:560px){
+  .tb-nav .tb-menu-trigger{padding:8px 10px!important}
+  .tb-nav .tb-menu-trigger>svg:first-child{display:none!important}
+  .tb-nav .tb-submenu{left:auto!important;right:0!important;transform:translateY(5px)!important}
+  .tb-nav .tb-menu:hover .tb-submenu,.tb-nav .tb-menu:focus-within .tb-submenu,
+  .tb-nav .tb-menu.is-open .tb-submenu{transform:translateY(0)!important}
+}
+</style>
 <header class="topbar">
   <div class="topbar-in">
     <a class="tb-brand" href="index.php" aria-label="Trading AI Horizon">
@@ -25,18 +82,18 @@ $NAV_ACTIVE = $NAV_ACTIVE ?? ''; ?>
       <div class="tb-menu">
         <button type="button" class="tb-menu-trigger <?= in_array($NAV_ACTIVE, ['paper', 'live'], true) ? 'on' : '' ?>"
                 aria-haspopup="true" aria-expanded="false">
-          <svg viewBox="0 0 24 24"><path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 5h16V6H4v3zm3 4v2h5v-2H7z"/></svg>
+          <svg width="15" height="15" viewBox="0 0 24 24"><path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 5h16V6H4v3zm3 4v2h5v-2H7z"/></svg>
           Accounts
-          <svg class="tb-chevron" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5z"/></svg>
+          <svg class="tb-chevron" width="10" height="15" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5z"/></svg>
         </button>
         <div class="tb-submenu">
           <div class="tb-submenu-panel">
             <a href="account_paper.php" class="<?= $NAV_ACTIVE === 'paper' ? 'on' : '' ?>">
-              <svg viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3H4V5zm0 5h16v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-9zm5 3v2h6v-2H9z"/></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3H4V5zm0 5h16v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-9zm5 3v2h6v-2H9z"/></svg>
               <span><b>Paper</b><small>Read only</small></span>
             </a>
             <a href="account_live.php" class="<?= $NAV_ACTIVE === 'live' ? 'on' : '' ?>">
-              <svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7v3H3v9h18v-9h-2V9a7 7 0 0 0-7-7zm-5 10V9a5 5 0 0 1 10 0v3H7zm5 3a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"/></svg>
+              <svg width="16" height="16" viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7v3H3v9h18v-9h-2V9a7 7 0 0 0-7-7zm-5 10V9a5 5 0 0 1 10 0v3H7zm5 3a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"/></svg>
               <span><b>Live</b><small>Read only</small></span>
             </a>
           </div>
