@@ -26,15 +26,13 @@ $NAV_ACTIVE = 'auto-paper';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI Auto Trade · Paper — Trading AI Horizon</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=25">
+<link rel="stylesheet" href="assets/css/app.css?v=26">
 </head>
 <body>
 <div class="bg"></div>
 <?php $NAV_ACTIVE = 'auto-paper'; require __DIR__ . '/inc/nav.php'; ?>
-<main class="hero wide">
-  <div class="badge" id="engineBadge"><span class="livedot" id="engineDot"></span>
-    <span id="engineStatus">Checking PC engine status…</span></div>
-  <section class="portfolio-summary" id="portfolioSummary" aria-live="polite">
+<!-- Outside .hero: that element animates with transform, which would make fixed positioning relative to the page column. -->
+<section class="portfolio-summary" id="portfolioSummary" aria-live="polite">
     <div class="portfolio-summary-head">
       <span class="portfolio-kicker">Moomoo Paper Portfolio</span>
       <span class="portfolio-sync" id="portfolioSync">Waiting for fresh Moomoo marks</span>
@@ -48,7 +46,10 @@ $NAV_ACTIVE = 'auto-paper';
       <span id="portfolioTarget">Sell-all unlocks at the portfolio target</span>
       <button type="button" class="portfolio-sell locked" id="portfolioSellAll" disabled>Sell all positions</button>
     </div>
-  </section>
+ </section>
+<main class="hero wide">
+  <div class="badge" id="engineBadge"><span class="livedot" id="engineDot"></span>
+    <span id="engineStatus">Checking PC engine status…</span></div>
   <h1 class="pagetitle" style="font-size:32px">AI Auto Trade · Paper</h1>
 
   <section class="card" id="emptyState" hidden>
