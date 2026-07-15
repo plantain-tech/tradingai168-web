@@ -26,7 +26,7 @@ $NAV_ACTIVE = 'auto-paper';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI Auto Trade · Paper — Trading AI Horizon</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=23">
+<link rel="stylesheet" href="assets/css/app.css?v=24">
 </head>
 <body>
 <div class="bg"></div>
@@ -34,6 +34,17 @@ $NAV_ACTIVE = 'auto-paper';
 <main class="hero wide">
   <div class="badge" id="engineBadge"><span class="livedot" id="engineDot"></span>
     <span id="engineStatus">Checking PC engine status…</span></div>
+  <section class="portfolio-summary" id="portfolioSummary" aria-live="polite">
+    <div class="portfolio-summary-head">
+      <span class="portfolio-kicker">Moomoo Paper Portfolio</span>
+      <span class="portfolio-sync" id="portfolioSync">Waiting for fresh Moomoo marks</span>
+    </div>
+    <div class="portfolio-metrics">
+      <div class="portfolio-metric"><span>Total market value</span><b id="portfolioValue">—</b></div>
+      <div class="portfolio-metric portfolio-profit" id="portfolioProfitMetric"><span>Combined profit / loss</span><b id="portfolioProfit">—</b></div>
+      <div class="portfolio-metric portfolio-return" id="portfolioReturnMetric"><span>Total return</span><b id="portfolioReturn">—</b></div>
+    </div>
+  </section>
   <h1 class="pagetitle" style="font-size:32px">AI Auto Trade · Paper</h1>
 
   <section class="card" id="emptyState" hidden>
@@ -94,6 +105,44 @@ function brokerMark(t) {
     return {ok: false, reason: 'Moomoo feed stale — P/L hidden'};
   }
   return {ok: true, mark};
+}
+
+function setPortfolioMetric(id, value, tone = '') {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const previous = el.textContent;
+  el.textContent = value;
+  el.classList.remove('portfolio-updated', 'portfolio-up', 'portfolio-down');
+  if (previous !== '—' && previous !== value) {
+    void el.offsetWidth;
+    el.classList.add('portfolio-updated');
+  }
+  if (tone) el.classList.add(tone);
+}
+
+function renderPortfolioSummary() {
+  const summary = document.getElementById('portfolioSummary');
+  const sync = document.getElementById('portfolioSync');
+  const marks = CAMPS.filter(showable).map(c => brokerMark(c.ticker));
+  const fresh = marks.filter(m => m.ok).map(m => m.mark);
+  if (!fresh.length || fresh.length !== marks.length) {
+    summary.classList.add('portfolio-stale');
+    sync.textContent = fresh.length ? 'Waiting for all Moomoo marks' : 'Waiting for fresh Moomoo marks';
+    setPortfolioMetric('portfolioValue', '—');
+    setPortfolioMetric('portfolioProfit', '—');
+    setPortfolioMetric('portfolioReturn', '—');
+    return;
+  }
+  const value = fresh.reduce((sum, q) => sum + Number(q.value || 0), 0);
+  const invested = fresh.reduce((sum, q) => sum + Number(q.qty || 0) * Number(q.avg_cost || 0), 0);
+  const pnl = fresh.reduce((sum, q) => sum + Number(q.pnl || 0), 0);
+  const pct = invested > 0 ? (pnl / invested) * 100 : 0;
+  const stamp = fresh.map(q => quoteMinute(q.quote_time)).filter(Boolean).sort().pop();
+  summary.classList.remove('portfolio-stale');
+  sync.textContent = `${fresh.length} active position${fresh.length === 1 ? '' : 's'} · Moomoo last ${stamp || 'just now'}`;
+  setPortfolioMetric('portfolioValue', '$' + fmt(value));
+  setPortfolioMetric('portfolioProfit', (pnl >= 0 ? '+$' : '−$') + fmt(Math.abs(pnl)), pnl >= 0 ? 'portfolio-up' : 'portfolio-down');
+  setPortfolioMetric('portfolioReturn', (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%', pct >= 0 ? 'portfolio-up' : 'portfolio-down');
 }
 
 function cardHTML(c) {
@@ -197,6 +246,7 @@ async function syncCampaigns() {
       ENGINE_HEALTH = j.engine_health || null;
       renderAll();
       renderBrokerMarks();
+      renderPortfolioSummary();
       renderEngineHealth();
     }
   } catch (e) { /* offline — keep last */ }
@@ -325,9 +375,11 @@ grid.addEventListener('click', e => {
 
 renderAll(true);
 renderBrokerMarks();
+renderPortfolioSummary();
 renderEngineHealth();
 setInterval(liveQuotes, 10000);
 setInterval(syncCampaigns, 10000);
+setInterval(renderPortfolioSummary, 10000);
 setInterval(renderEngineHealth, 10000);
 </script>
 </body>

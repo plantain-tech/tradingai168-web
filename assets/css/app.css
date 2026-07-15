@@ -245,6 +245,14 @@ select.in option{background:#12172a; color:var(--ink)}
 .plbar-fill.up{background:linear-gradient(90deg,var(--brand1),var(--ok))}
 .plbar-fill.dn{background:linear-gradient(90deg,#7f1d1d,var(--bad))}
 .mon-tiles .tile b{font-size:16px}
+.portfolio-summary{width:min(100%,620px);margin:-6px auto 24px;padding:15px 18px 16px;border:1px solid rgba(34,211,238,.20);border-radius:16px;text-align:left;background:linear-gradient(115deg,rgba(99,102,241,.13),rgba(34,211,238,.08));box-shadow:0 12px 34px rgba(0,0,0,.17);animation:portfolio-enter .62s ease both}
+@keyframes portfolio-enter{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+.portfolio-summary-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding-bottom:11px;border-bottom:1px solid rgba(255,255,255,.09)}
+.portfolio-kicker{font-size:10.5px;color:var(--brand2);font-weight:800;letter-spacing:.15em;text-transform:uppercase}.portfolio-sync{font-size:10.5px;color:var(--muted);text-align:right;white-space:nowrap}
+.portfolio-metrics{display:grid;grid-template-columns:1.15fr 1fr .72fr;gap:10px;padding-top:12px}.portfolio-metric{min-width:0;padding-left:12px;border-left:1px solid rgba(255,255,255,.10)}.portfolio-metric:first-child{border-left:0;padding-left:0}.portfolio-metric span{display:block;margin-bottom:4px;color:var(--muted);font-size:10px;letter-spacing:.04em}.portfolio-metric b{display:block;font-size:19px;line-height:1.1;font-variant-numeric:tabular-nums;transition:color .2s,transform .2s}.portfolio-up{color:var(--ok)!important}.portfolio-down{color:var(--bad)!important}
+.portfolio-updated{animation:portfolio-bump .62s ease}@keyframes portfolio-bump{0%{transform:scale(1)}45%{transform:scale(1.09)}100%{transform:scale(1)}}
+.portfolio-stale{border-color:rgba(251,191,36,.22);background:rgba(251,191,36,.055)}.portfolio-stale .portfolio-sync{color:var(--wait)}
+@media(max-width:560px){.portfolio-summary{margin:0 auto 20px;padding:13px 14px}.portfolio-summary-head{align-items:flex-start;flex-direction:column;gap:4px}.portfolio-sync{text-align:left;white-space:normal}.portfolio-metrics{gap:8px}.portfolio-metric{padding-left:8px}.portfolio-metric b{font-size:16px}.portfolio-metric span{font-size:9.5px}}
 
 /* ---- Analyze hero button (v12) ---- */
 .analyze-btn{position:relative; width:100%; margin:0 0 22px; padding:18px 20px;
