@@ -24,7 +24,9 @@ $maxConcurrent = (int) ($settings['max_concurrent'] ?? 3);
 $activeCount = count($running) + count(array_filter($queued,
     fn($q) => !empty($q['APPROVE_BUY'])));
 $slotsFull = $activeCount >= $maxConcurrent;
-$analysisQueued = !empty($queued['ALL']['RUN_ANALYSIS']);
+$analysisStatus = doc_get('analysis_status');
+$analysisRunning = in_array($analysisStatus['data']['state'] ?? '', ['starting', 'running'], true);
+$analysisQueued = !empty($queued['ALL']['RUN_ANALYSIS']) || $analysisRunning;
 // Show an AI-failure card only if the error is NEWER than the last good pick.
 $anErr = doc_get('analysis_error');
 $showErr = $anErr && (!$pick || ($anErr['updated_at'] > $pick['updated_at']));
@@ -62,7 +64,7 @@ $NAV_ACTIVE = 'dash';
 
   <?php if ($analysisQueued): ?>
     <button class="analyze-btn locked" disabled><span class="lockdot"></span>
-      Analysis queued — engine is working…</button>
+      Analysis running — Paper engine continues monitoring…</button>
   <?php else: ?>
     <button class="analyze-btn" id="analyzeBtn">
       <span class="ab-spark">✦</span> Analyze &amp; Pick Top 3 — AI powered
