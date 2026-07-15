@@ -22,23 +22,26 @@ $NAV_ACTIVE = $NAV_ACTIVE ?? ''; ?>
       <a href="markets.php" class="<?= $NAV_ACTIVE === 'mkt' ? 'on' : '' ?>">
         <svg viewBox="0 0 24 24"><path d="M3 5v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2zm2 0h14v3H5V5zm0 5h6v9H5v-9zm8 0h6v9h-6v-9z"/></svg>
         Markets</a>
-      <details class="tb-menu" <?= in_array($NAV_ACTIVE, ['paper', 'live'], true) ? 'data-active="true"' : '' ?>>
-        <summary class="<?= in_array($NAV_ACTIVE, ['paper', 'live'], true) ? 'on' : '' ?>">
+      <div class="tb-menu">
+        <button type="button" class="tb-menu-trigger <?= in_array($NAV_ACTIVE, ['paper', 'live'], true) ? 'on' : '' ?>"
+                aria-haspopup="true" aria-expanded="false">
           <svg viewBox="0 0 24 24"><path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm0 5h16V6H4v3zm3 4v2h5v-2H7z"/></svg>
           Accounts
           <svg class="tb-chevron" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5z"/></svg>
-        </summary>
+        </button>
         <div class="tb-submenu">
-          <a href="account_paper.php" class="<?= $NAV_ACTIVE === 'paper' ? 'on' : '' ?>">
-            <svg viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3H4V5zm0 5h16v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-9zm5 3v2h6v-2H9z"/></svg>
-            <span><b>Paper</b><small>Simulated trading</small></span>
-          </a>
-          <a href="account_live.php" class="<?= $NAV_ACTIVE === 'live' ? 'on' : '' ?>">
-            <svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7v3H3v9h18v-9h-2V9a7 7 0 0 0-7-7zm-5 10V9a5 5 0 0 1 10 0v3H7zm5 3a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"/></svg>
-            <span><b>Live</b><small>Real account · read only</small></span>
-          </a>
+          <div class="tb-submenu-panel">
+            <a href="account_paper.php" class="<?= $NAV_ACTIVE === 'paper' ? 'on' : '' ?>">
+              <svg viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v3H4V5zm0 5h16v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-9zm5 3v2h6v-2H9z"/></svg>
+              <span><b>Paper</b><small>Read only</small></span>
+            </a>
+            <a href="account_live.php" class="<?= $NAV_ACTIVE === 'live' ? 'on' : '' ?>">
+              <svg viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7v3H3v9h18v-9h-2V9a7 7 0 0 0-7-7zm-5 10V9a5 5 0 0 1 10 0v3H7zm5 3a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"/></svg>
+              <span><b>Live</b><small>Read only</small></span>
+            </a>
+          </div>
         </div>
-      </details>
+      </div>
       <a href="settings.php" class="<?= $NAV_ACTIVE === 'set' ? 'on' : '' ?>">
         <svg viewBox="0 0 24 24"><path d="M19.4 13a7.9 7.9 0 0 0 .1-1 7.9 7.9 0 0 0-.1-1l2.1-1.7a.5.5 0 0 0 .1-.6l-2-3.5a.5.5 0 0 0-.6-.2l-2.5 1a7.7 7.7 0 0 0-1.7-1l-.4-2.6a.5.5 0 0 0-.5-.4h-4a.5.5 0 0 0-.5.4l-.4 2.6c-.6.3-1.2.6-1.7 1l-2.5-1a.5.5 0 0 0-.6.2l-2 3.5a.5.5 0 0 0 .1.6L4.5 11a7.9 7.9 0 0 0 0 2l-2.1 1.7a.5.5 0 0 0-.1.6l2 3.5c.1.2.4.3.6.2l2.5-1c.5.4 1.1.8 1.7 1l.4 2.6c0 .2.2.4.5.4h4c.2 0 .5-.2.5-.4l.4-2.6c.6-.3 1.2-.6 1.7-1l2.5 1c.2.1.5 0 .6-.2l2-3.5a.5.5 0 0 0-.1-.6L19.4 13zM12 15.5A3.5 3.5 0 1 1 12 8.5a3.5 3.5 0 0 1 0 7z"/></svg>
         Settings</a>
@@ -48,3 +51,20 @@ $NAV_ACTIVE = $NAV_ACTIVE ?? ''; ?>
     </a>
   </div>
 </header>
+<script>
+(() => {
+  const menu = document.querySelector('.tb-menu');
+  const trigger = menu?.querySelector('.tb-menu-trigger');
+  if (!menu || !trigger) return;
+  const setOpen = open => {
+    menu.classList.toggle('is-open', open);
+    trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+  };
+  trigger.addEventListener('click', e => {
+    e.stopPropagation();
+    setOpen(!menu.classList.contains('is-open'));
+  });
+  document.addEventListener('click', e => { if (!menu.contains(e.target)) setOpen(false); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') setOpen(false); });
+})();
+</script>
