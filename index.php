@@ -292,8 +292,45 @@ document.querySelectorAll('.buy-click').forEach(btn => {
 });
 
 // ---- Analyze overlay ----
+let analysisAudioContext = null;
+
+// Original Web Audio completion cue: a short coin-payout style rise, created
+// locally rather than loading or imitating a copyrighted casino sound asset.
+function primeAnalysisCompletionSound() {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    analysisAudioContext = analysisAudioContext || new AudioContext();
+    if (analysisAudioContext.state === 'suspended') analysisAudioContext.resume();
+  } catch (e) {}
+}
+
+function playAnalysisCompletionSound() {
+  const ctx = analysisAudioContext;
+  if (!ctx) return;
+  const play = () => {
+    const start = ctx.currentTime + 0.03;
+    const notes = [1318.5, 1568, 1975.5, 2637];
+    notes.forEach((frequency, index) => {
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const at = start + index * 0.105;
+      oscillator.type = index === notes.length - 1 ? 'sine' : 'triangle';
+      oscillator.frequency.setValueAtTime(frequency, at);
+      gain.gain.setValueAtTime(0.0001, at);
+      gain.gain.exponentialRampToValueAtTime(index === notes.length - 1 ? 0.16 : 0.10, at + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.0001, at + (index === notes.length - 1 ? 0.38 : 0.13));
+      oscillator.connect(gain).connect(ctx.destination);
+      oscillator.start(at); oscillator.stop(at + 0.4);
+    });
+  };
+  if (ctx.state === 'suspended') ctx.resume().then(play).catch(() => {});
+  else play();
+}
+
 const anBtn = document.getElementById('analyzeBtn');
 if (anBtn) anBtn.addEventListener('click', async () => {
+  primeAnalysisCompletionSound();
   const ov = document.getElementById('anOverlay');
   const fill = document.getElementById('anFill');
   const pct = document.getElementById('anPct');
@@ -336,6 +373,7 @@ if (anBtn) anBtn.addEventListener('click', async () => {
         done = true; clearInterval(anim); clearInterval(poll);
         fill.style.width = '100%'; pct.textContent = '100%';
         stage.textContent = 'Done — new Top 3 ready!';
+        playAnalysisCompletionSound();
         setTimeout(() => location.reload(), 900);
         return;
       }
