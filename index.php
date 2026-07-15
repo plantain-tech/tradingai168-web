@@ -67,8 +67,8 @@ $NAV_ACTIVE = 'dash';
       Analysis running — Paper engine continues monitoring…</button>
   <?php else: ?>
     <button class="analyze-btn" id="analyzeBtn">
-      <span class="ab-spark">✦</span> Analyze &amp; Pick Top 3 — AI powered
-      <em>screens 500+ stocks · buzz &amp; trends · <?= htmlspecialchars($settings['ai_model']) ?></em>
+      <span class="ab-spark">✦</span> Analyze &amp; Pick Up to 3 — AI powered
+      <em>multi-horizon momentum · relative strength · Google Trends · <?= htmlspecialchars($settings['ai_model']) ?></em>
     </button>
   <?php endif; ?>
 
@@ -141,6 +141,8 @@ $NAV_ACTIVE = 'dash';
     </div>
 
     <p class="muted small">Click a card to read its analysis and score breakdown.
+      The result may contain fewer than three stocks when sector, correlation, earnings,
+      liquidity, or risk requirements leave fewer legitimate candidates.
       A BUY creates the campaign behind the scenes — once the order is placed on
       Moomoo, auto-trading activates and the position appears on
       <a href="monitor.php" style="color:var(--brand2)">Monitor</a>. Budgets:
@@ -149,7 +151,7 @@ $NAV_ACTIVE = 'dash';
   </section>
   <?php else: ?>
     <section class="card"><h2>No AI pick yet</h2>
-      <p class="muted">Press <b>Analyze &amp; Pick Top 3</b> above (engine service must
+      <p class="muted">Press <b>Analyze &amp; Pick Up to 3</b> above (engine service must
       be running: <code>python runner/service.py</code>).</p></section>
   <?php endif; ?>
 
@@ -167,12 +169,12 @@ $NAV_ACTIVE = 'dash';
       <circle cx="24" cy="27" r="7" fill="url(#anhz)"/>
       <line x1="12" y1="33" x2="36" y2="33" stroke="#0b0f1a" stroke-width="3"/>
     </svg>
-    <h3>AI analysis in progress</h3>
+    <h3>AI momentum analysis in progress</h3>
     <p class="an-stage" id="anStage">Contacting engine…</p>
     <div class="an-track"><div class="an-fill" id="anFill"></div></div>
     <p class="an-pct" id="anPct">0%</p>
     <p class="muted small" id="anHint">Screening the full universe, scanning buzz,
-      and asking the AI to rank — usually 1–3 minutes.</p>
+      Google Trends, liquidity, earnings and risk, then asking the AI to rank — usually 2–5 minutes.</p>
   </div>
 </div>
 
@@ -215,11 +217,24 @@ function renderPanel(card) {
   document.getElementById('aiPanelTicker').textContent = card.dataset.ticker;
   let sig = {};
   try { sig = JSON.parse(card.dataset.signals || '{}'); } catch (e) {}
-  const label = {price: 'Price', avg_ma_slope_yr: 'Avg MA slope /yr',
+  const label = {price: 'Price', quant_score: 'Quant score', sector: 'Sector',
+                 momentum_12_1: '12–1 month momentum', momentum_6_1: '6–1 month momentum',
+                 momentum_3_1: '3–1 month momentum', relative_spy: 'Strength vs SPY',
+                 relative_sector: 'Strength vs sector', high_52w_proximity: '52-week high proximity',
+                 trend_consistency: 'Trend consistency', volatility_63d: '63-day volatility',
+                 max_drawdown_63d: '63-day max drawdown', avg_dollar_volume: 'Average dollar volume',
+                 spread_pct: 'Bid / ask spread', earnings_momentum: 'Earnings momentum',
+                 earnings_in_bdays: 'Earnings in business days',
+                 avg_ma_slope_yr: 'Avg MA slope /yr',
                  news_articles_14d: 'News articles (14d)', reddit_mentions: 'Reddit mentions',
                  buzz_score: 'Buzz score', google_trends: 'Trends momentum'};
+  const pctSignals = new Set(['momentum_12_1', 'momentum_6_1', 'momentum_3_1',
+    'relative_spy', 'relative_sector', 'high_52w_proximity', 'trend_consistency',
+    'volatility_63d', 'max_drawdown_63d', 'spread_pct', 'earnings_momentum']);
   const fmtV = (k, v) => v == null ? '—'
       : k === 'price' ? '$' + Number(v).toFixed(2)
+      : k === 'avg_dollar_volume' ? '$' + (Number(v) / 1e6).toFixed(1) + 'M'
+      : pctSignals.has(k) ? (Number(v) * 100).toFixed(1) + '%'
       : k === 'avg_ma_slope_yr' ? (v >= 0 ? '+' : '') + (v * 100).toFixed(0) + '%'
       : k === 'google_trends' ? Number(v).toFixed(2) + 'x' : v;
   const sigHtml = Object.keys(label).map(k =>
@@ -335,8 +350,8 @@ if (anBtn) anBtn.addEventListener('click', async () => {
   const fill = document.getElementById('anFill');
   const pct = document.getElementById('anPct');
   const stage = document.getElementById('anStage');
-  const stages = [[4, 'Contacting engine…'], [15, 'Screening 500+ stocks — price & trend rules'],
-                  [35, 'Scanning news & social buzz (free sources)'],
+  const stages = [[4, 'Contacting engine…'], [15, 'Screening 500+ stocks — momentum, liquidity & risk'],
+                  [35, 'Comparing SPY, sectors, earnings & Google Trends'],
                   [50, 'AI pass 1 — shortlisting the strongest candidates…'],
                   [64, 'Deep due diligence: financials, insiders, earnings calendar…'],
                   [82, 'AI pass 2 — writing the analyst report…'],
@@ -372,7 +387,7 @@ if (anBtn) anBtn.addEventListener('click', async () => {
       if (now && now !== before) {
         done = true; clearInterval(anim); clearInterval(poll);
         fill.style.width = '100%'; pct.textContent = '100%';
-        stage.textContent = 'Done — new Top 3 ready!';
+        stage.textContent = 'Done — new qualified picks ready!';
         playAnalysisCompletionSound();
         setTimeout(() => location.reload(), 900);
         return;
