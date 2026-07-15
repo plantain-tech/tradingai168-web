@@ -26,7 +26,7 @@ $NAV_ACTIVE = 'auto-paper';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI Auto Trade · Paper — Trading AI Horizon</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=24">
+<link rel="stylesheet" href="assets/css/app.css?v=25">
 </head>
 <body>
 <div class="bg"></div>
@@ -44,6 +44,10 @@ $NAV_ACTIVE = 'auto-paper';
       <div class="portfolio-metric portfolio-profit" id="portfolioProfitMetric"><span>Combined profit / loss</span><b id="portfolioProfit">—</b></div>
       <div class="portfolio-metric portfolio-return" id="portfolioReturnMetric"><span>Total return</span><b id="portfolioReturn">—</b></div>
     </div>
+    <div class="portfolio-action">
+      <span id="portfolioTarget">Sell-all unlocks at the portfolio target</span>
+      <button type="button" class="portfolio-sell locked" id="portfolioSellAll" disabled>Sell all positions</button>
+    </div>
   </section>
   <h1 class="pagetitle" style="font-size:32px">AI Auto Trade · Paper</h1>
 
@@ -58,10 +62,15 @@ $NAV_ACTIVE = 'auto-paper';
   <?php require __DIR__ . '/inc/brand_footer.php'; ?>
 </main>
 <?php require __DIR__ . '/inc/modal.php'; ?>
+<button class="scroll-top" id="scrollTop" type="button" aria-label="Scroll back to top" title="Back to top">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 14 6-6 6 6-1.4 1.4-3.6-3.6V21h-2v-9.2l-3.6 3.6z"/></svg>
+</button>
 <script>
 const CSRF = '<?= $csrf ?>';
 const NAMES = <?= json_encode($names) ?>;
 const TARGET_PCT = <?= (float) $settings['profit_alert_pct'] * 100 ?>;
+const PORTFOLIO_PROFIT_TARGET = <?= (float) ($settings['portfolio_profit_alert_usd'] ?? 500) ?>;
+const PORTFOLIO_RETURN_TARGET = <?= (float) ($settings['portfolio_return_alert_pct'] ?? 0.09) * 100 ?>;
 const LIMITS = 'limits: +<?= round($settings['profit_alert_pct'] * 100) ?>% alert · −$<?=
     number_format($settings['loss_alert_usd']) ?> / −$<?= number_format($settings['loss_urgent_usd']) ?>';
 
@@ -70,6 +79,7 @@ let PENDING = <?= json_encode($pending) ?>;
 let MARKS = <?= json_encode($marks) ?>;
 let ENGINE_HEALTH = <?= json_encode($engineHealth) ?>;
 const MARK_STALE_MS = 35000;
+let PORTFOLIO = null;
 const grid = document.getElementById('monGrid');
 const fmt = (n, d = 2) => Number(n || 0).toLocaleString('en-US',
     {minimumFractionDigits: d, maximumFractionDigits: d});
@@ -120,6 +130,38 @@ function setPortfolioMetric(id, value, tone = '') {
   if (tone) el.classList.add(tone);
 }
 
+function paperEngineRunning() {
+  const h = ENGINE_HEALTH && ENGINE_HEALTH.data;
+  const seen = h ? Date.parse(h.last_seen_at || '') : 0;
+  return !!(h && h.status === 'running' && h.mode !== 'REAL' && seen &&
+            Date.now() - seen <= Number(h.stale_after_seconds || 35) * 1000);
+}
+
+function setPortfolioAction(state) {
+  const target = document.getElementById('portfolioTarget');
+  const button = document.getElementById('portfolioSellAll');
+  PORTFOLIO = state;
+  button.classList.remove('ready', 'locked');
+  if (!state) {
+    target.textContent = 'Waiting for complete Moomoo portfolio marks';
+    button.textContent = 'Sell all positions'; button.disabled = true; button.classList.add('locked');
+    return;
+  }
+  if (!state.paper) {
+    target.textContent = 'Paper bulk sell is unavailable while a non-Paper engine is connected';
+    button.textContent = 'Paper engine required'; button.disabled = true; button.classList.add('locked');
+    return;
+  }
+  if (!state.qualified) {
+    target.textContent = `Unlocks at +$${fmt(PORTFOLIO_PROFIT_TARGET, 0)} or +${PORTFOLIO_RETURN_TARGET.toFixed(2)}% total return`;
+    button.textContent = 'Sell all positions'; button.disabled = true; button.classList.add('locked');
+    return;
+  }
+  target.textContent = 'Portfolio target reached · your decision is required';
+  button.textContent = `Sell all ${state.tickers.length} positions`;
+  button.disabled = false; button.classList.add('ready');
+}
+
 function renderPortfolioSummary() {
   const summary = document.getElementById('portfolioSummary');
   const sync = document.getElementById('portfolioSync');
@@ -131,6 +173,7 @@ function renderPortfolioSummary() {
     setPortfolioMetric('portfolioValue', '—');
     setPortfolioMetric('portfolioProfit', '—');
     setPortfolioMetric('portfolioReturn', '—');
+    setPortfolioAction(null);
     return;
   }
   const value = fresh.reduce((sum, q) => sum + Number(q.value || 0), 0);
@@ -143,6 +186,10 @@ function renderPortfolioSummary() {
   setPortfolioMetric('portfolioValue', '$' + fmt(value));
   setPortfolioMetric('portfolioProfit', (pnl >= 0 ? '+$' : '−$') + fmt(Math.abs(pnl)), pnl >= 0 ? 'portfolio-up' : 'portfolio-down');
   setPortfolioMetric('portfolioReturn', (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%', pct >= 0 ? 'portfolio-up' : 'portfolio-down');
+  const tickers = CAMPS.filter(showable).filter(c => Number(brokerMark(c.ticker).mark.qty || 0) > 0)
+    .map(c => c.ticker).filter(t => !pendingHas(t, 'APPROVE_SELL_ALL'));
+  setPortfolioAction({tickers, pnl, pct, qualified: pnl > PORTFOLIO_PROFIT_TARGET || pct > PORTFOLIO_RETURN_TARGET,
+                      paper: paperEngineRunning()});
 }
 
 function cardHTML(c) {
@@ -372,6 +419,34 @@ grid.addEventListener('click', e => {
     });
   }
 });
+
+document.getElementById('portfolioSellAll').addEventListener('click', () => {
+  const p = PORTFOLIO;
+  if (!p || !p.qualified || !p.paper || !p.tickers.length) return;
+  tradeModal({
+    title: 'Sell the whole Paper portfolio?', icon: '💼', danger: true,
+    rows: [['Positions', p.tickers.join(', ')], ['Combined P/L', (p.pnl >= 0 ? '+$' : '−$') + fmt(Math.abs(p.pnl))],
+           ['Total return', (p.pct >= 0 ? '+' : '') + p.pct.toFixed(2) + '%'],
+           ['Orders', `${p.tickers.length} separate Moomoo Paper sell orders`]],
+    note: 'This queues one sell-all command for each current Paper position. Orders are submitted separately by the PC engine, so they are not an atomic broker order.',
+    okLabel: `Confirm SELL ALL ${p.tickers.length} positions`,
+    onConfirm: async () => {
+      const results = await Promise.all(p.tickers.map(t => queueCommand('APPROVE_SELL_ALL', t, CSRF)));
+      if (results.every(Boolean)) {
+        p.tickers.forEach(t => PENDING.push({t, a: 'APPROVE_SELL_ALL'}));
+        renderAll(); renderPortfolioSummary();
+      } else {
+        alert('Some sell commands could not be queued. Check the individual positions before trying again.');
+      }
+    }
+  });
+});
+
+const scrollTopButton = document.getElementById('scrollTop');
+const renderScrollTop = () => scrollTopButton.classList.toggle('visible', window.scrollY > 420);
+scrollTopButton.addEventListener('click', () => window.scrollTo({top: 0, behavior: 'smooth'}));
+window.addEventListener('scroll', renderScrollTop, {passive: true});
+renderScrollTop();
 
 renderAll(true);
 renderBrokerMarks();

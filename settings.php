@@ -21,6 +21,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'loss_alert_usd'   => max(1, $f('loss_alert_usd', 1400)),
             'loss_urgent_usd'  => max(1, $f('loss_urgent_usd', 2100)),
             'fill_wait_s'      => max(5, (int) $f('fill_wait_s', 45)),
+            'portfolio_profit_alert_usd' => max(1, $f('portfolio_profit_alert_usd', 500)),
+            'portfolio_return_alert_pct' => max(0.01, $f('portfolio_return_alert_pct', 9) / 100.0),
         ];
         if ($s['loss_urgent_usd'] < $s['loss_alert_usd']) {
             $err = 'Urgent loss level must be >= the alert level.';
@@ -58,7 +60,7 @@ $token = api_token();
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Settings — Trading AI Horizon</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=24">
+<link rel="stylesheet" href="assets/css/app.css?v=25">
 </head>
 <body>
 <div class="bg"></div>
@@ -93,6 +95,12 @@ $token = api_token();
         <input class="in" name="loss_urgent_usd" type="number" value="<?= $s['loss_urgent_usd'] ?>"></div>
       <div><label>Fill wait (seconds)</label>
         <input class="in" name="fill_wait_s" type="number" value="<?= $s['fill_wait_s'] ?>"></div>
+      <div><label>Portfolio profit alert ($)</label>
+        <input class="in" name="portfolio_profit_alert_usd" type="number" step="1"
+               value="<?= $s['portfolio_profit_alert_usd'] ?? 500 ?>"></div>
+      <div><label>Portfolio return alert (%)</label>
+        <input class="in" name="portfolio_return_alert_pct" type="number" step="0.5"
+               value="<?= round(($s['portfolio_return_alert_pct'] ?? 0.09) * 100, 2) ?>"></div>
       <div class="full"><button class="btn">Save trading settings</button></div>
     </form>
   </section>
