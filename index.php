@@ -206,7 +206,7 @@ $NAV_ACTIVE = 'dash';
     <div class="an-track"><div class="an-fill" id="anFill"></div></div>
     <p class="an-pct" id="anPct">0%</p>
     <p class="muted small" id="anHint">Screening the full universe, scanning buzz,
-      Google Trends, liquidity, earnings and risk, then asking the AI to rank — usually 2–5 minutes.</p>
+      Google Trends, liquidity, earnings and risk, then running the structured AI audit — usually 3–8 minutes.</p>
   </div>
 </div>
 
