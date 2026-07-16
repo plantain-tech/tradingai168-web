@@ -38,7 +38,7 @@ $NAV_ACTIVE = 'dash';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Trading AI Horizon — Dashboard</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=26">
+<link rel="stylesheet" href="assets/css/app.css?v=27">
 </head>
 <body>
 <div class="bg"></div>
@@ -332,11 +332,12 @@ document.querySelectorAll('.buy-click').forEach(btn => {
     tradeModal({
       title: `Buy ${t}?`, icon: '🚀',
       rows: [['Company', btn.dataset.name], ['Ticker', t],
-             ['First tranche', TRANCHE + ' shares @ best bid'], ['Last price', px],
-             ['Then', 'DCA autopilot until the stock budget is spent']],
+             ['First tranche', TRANCHE + ' shares · bounded limit ladder'], ['Last price', px],
+             ['Then', 'DCA checkpoints ask KEEP BUYING or HOLD']],
       note: 'On confirm: a campaign is created and the order goes to Moomoo. Once ' +
-            'placed, auto-trading is officially ACTIVE — monitor it and sell any ' +
-            'time on the Monitor page. Loss alerts and budget caps stay enforced.',
+            'placed, tracking is ACTIVE. Every later DCA date requires a fresh KEEP BUYING ' +
+            'decision on Auto Trade → Paper; HOLD places no order. Momentum gates, loss ' +
+            'alerts, spread/slippage collars and budget caps stay enforced.',
       okLabel: 'Confirm BUY',
       onConfirm: async () => {
         if (await queueCommand('APPROVE_BUY', t, CSRF)) {

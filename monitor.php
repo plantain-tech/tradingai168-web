@@ -26,7 +26,7 @@ $NAV_ACTIVE = 'auto-paper';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI Auto Trade · Paper — Trading AI Horizon</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=26">
+<link rel="stylesheet" href="assets/css/app.css?v=27">
 </head>
 <body>
 <div class="bg"></div>
@@ -90,6 +90,55 @@ const quoteMinute = s => {
 };
 const pendingHas = (t, a) => PENDING.some(p => p.t === t && p.a === a);
 const showable = c => (c.status === 'ACTIVE' || (c.qty || 0) > 0);
+const dateLabel = s => {
+  if (!s) return 'Not available';
+  const d = new Date(String(s).length === 10 ? s + 'T12:00:00' : s);
+  return Number.isNaN(d.getTime()) ? s : d.toLocaleDateString('en-US',
+    {year:'numeric', month:'short', day:'numeric'});
+};
+
+function dcaPanel(c) {
+  if (!(c.qty > 0)) return '';
+  const t = c.ticker, due = !!c.dca_due, gate = c.dca_gate || {};
+  const eligible = gate.eligible === true && c.dca_status !== 'BLOCKED';
+  const approvePending = pendingHas(t, 'APPROVE_DCA');
+  const holdPending = pendingHas(t, 'HOLD_DCA');
+  const proposed = Number(c.dca_proposed_qty || 0);
+  const mode = c.dca_sizing_mode === 'adaptive_recovery'
+    ? 'Adaptive recovery · base ± step' : 'Progressive strength · recommended';
+  const reasons = (gate.reasons || []).join(' · ');
+  let controls = '';
+  if (due) {
+    if (approvePending || holdPending) {
+      controls = `<button class="dca-choice dca-pending" disabled><span class="lockdot"></span>
+        ${approvePending ? 'KEEP BUYING queued — engine revalidating' : 'HOLD queued — rescheduling'}</button>`;
+    } else {
+      controls = `<div class="dca-actions">
+        <button class="dca-choice dca-keep dca-buy-click" data-ticker="${t}"
+          ${eligible && proposed > 0 ? '' : 'disabled'}>
+          <span>Keep buying</span><b>${eligible && proposed > 0 ? proposed + ' shares' : 'Momentum gate blocked'}</b></button>
+        <button class="dca-choice dca-hold dca-hold-click" data-ticker="${t}">
+          <span>Hold</span><b>No order · review later</b></button></div>`;
+    }
+  } else {
+    controls = `<div class="dca-waiting"><span class="dca-pulse"></span>
+      Monitoring · your decision will be requested on the next checkpoint</div>`;
+  }
+  return `<section class="dca-panel ${due ? (eligible ? 'dca-due' : 'dca-blocked') : ''}">
+    <div class="dca-panel-head"><div><span class="dca-kicker">Advanced DCA checkpoint</span>
+      <b>${due ? (eligible ? 'Your decision is due' : 'Review required · buying blocked') : 'Scheduled & monitoring'}</b></div>
+      <span class="dca-mode">${mode}</span></div>
+    <div class="dca-dates">
+      <div><span>Campaign created</span><b>${dateLabel(c.campaign_created)}</b></div>
+      <i></i><div><span>Last buy / decision</span><b>${dateLabel(c.last_dca_decision_date || c.last_buy_date)}</b></div>
+      <i></i><div class="${due ? 'is-due' : ''}"><span>Next DCA review</span><b>${dateLabel(c.next_dca_date)}</b>
+        <em>Every ${c.dca_gap_bdays || '—'} business days</em></div>
+    </div>
+    <div class="dca-meta"><span>Tranches <b>${c.tranche_count || 0} / ${c.max_tranches || '—'}</b></span>
+      <span>Status <b>${String(c.dca_status || 'SCHEDULED').replaceAll('_',' ')}</b></span>
+      ${c.last_dca_decision ? `<span>Last choice <b>${String(c.last_dca_decision).replaceAll('_',' ')}</b></span>` : ''}</div>
+    ${reasons ? `<p class="dca-reason">${reasons}</p>` : ''}${controls}</section>`;
+}
 
 function renderEngineHealth() {
   const h = ENGINE_HEALTH && ENGINE_HEALTH.data;
@@ -212,7 +261,8 @@ function cardHTML(c) {
   return `
     <div class="mon-head">
       <div><h2 class="mon-tk">${t}</h2>
-        <span class="muted">${NAMES[t] || c.name || ''}</span></div>
+        <span class="muted">${NAMES[t] || c.name || ''}</span>
+        <span class="campaign-created">Campaign · ${dateLabel(c.campaign_created)}</span></div>
       <div class="mon-price">
         <b class="live-px" data-t="${t}">$${fmt(c.price)}</b>
         <em class="live-chg" data-t="${t}">—</em></div>
@@ -229,13 +279,16 @@ function cardHTML(c) {
       <div class="tile"><span>Total value</span><b class="live-val" data-t="${t}">—</b></div>
       <div class="tile"><span>Status</span><b>${c.status || ''}</b></div>
     </div>
+    ${dcaPanel(c)}
     ${btn}
     <p class="muted small" style="margin-top:8px">engine sync: ${c.updated_at || '—'} · ${LIMITS}</p>`;
 }
 
 function sig(c) {   // structural signature: when this changes, morph the card
   return [c.qty, c.status, c.invested, c.avg_cost,
+          c.dca_status, c.next_dca_date, c.dca_proposed_qty, c.last_dca_decision,
           pendingHas(c.ticker, 'APPROVE_SELL_ALL'),
+          pendingHas(c.ticker, 'APPROVE_DCA'), pendingHas(c.ticker, 'HOLD_DCA'),
           pendingHas(c.ticker, 'CANCEL_CAMPAIGN')].join('|');
 }
 
@@ -387,16 +440,48 @@ async function liveQuotes() {
 grid.addEventListener('click', e => {
   const sell = e.target.closest('.sell-click');
   const cancel = e.target.closest('.cancel-click');
-  if (sell) {
+  const dcaBuy = e.target.closest('.dca-buy-click');
+  const dcaHold = e.target.closest('.dca-hold-click');
+  if (dcaBuy) {
+    const t = dcaBuy.dataset.ticker, c = cardEls[t]?.data || {};
+    tradeModal({
+      title: `Keep buying ${t}?`, icon: '↗',
+      rows: [['Campaign created', dateLabel(c.campaign_created)],
+             ['DCA checkpoint', dateLabel(c.next_dca_date)],
+             ['Proposed tranche', `${c.dca_proposed_qty || 0} shares`],
+             ['Sizing', c.dca_sizing_mode === 'adaptive_recovery' ? 'Adaptive recovery' : 'Progressive strength'],
+             ['Authorization', 'This checkpoint only']],
+      note: 'The PC engine re-checks momentum, earnings timing, drawdown, budget, spread and Moomoo price before placing one bounded Paper order. If any gate fails, no order is sent.',
+      okLabel: `Confirm KEEP BUYING ${t}`,
+      onConfirm: async () => {
+        if (await queueCommand('APPROVE_DCA', t, CSRF)) {
+          PENDING.push({t, a: 'APPROVE_DCA'}); renderAll();
+        } else { alert('Could not queue the DCA decision — try again.'); }
+      }
+    });
+  } else if (dcaHold) {
+    const t = dcaHold.dataset.ticker, c = cardEls[t]?.data || {};
+    tradeModal({
+      title: `Hold ${t} at this checkpoint?`, icon: 'Ⅱ',
+      rows: [['DCA checkpoint', dateLabel(c.next_dca_date)], ['Order', 'No order'],
+             ['Effect', `Schedule another review after ${c.dca_gap_bdays || '—'} business days`]],
+      note: 'HOLD keeps the existing Paper position unchanged. Monitoring, alerts and your manual SELL control continue normally.',
+      okLabel: `Confirm HOLD ${t}`,
+      onConfirm: async () => {
+        if (await queueCommand('HOLD_DCA', t, CSRF)) {
+          PENDING.push({t, a: 'HOLD_DCA'}); renderAll();
+        } else { alert('Could not queue HOLD — try again.'); }
+      }
+    });
+  } else if (sell) {
     const t = sell.dataset.ticker, rec = cardEls[t], c = rec?.data || {};
     const pl = rec?.el.querySelector('.live-pl')?.textContent || '—';
     tradeModal({
       title: `Sell ALL ${t}?`, icon: '💰', danger: true,
       rows: [['Company', NAMES[t] || t], ['Ticker', t],
              ['Shares', c.qty || 0], ['Current P&L', pl],
-             ['Order', 'sell entire position @ best ask']],
-      note: 'Queues your approval — the engine sells at the next opportunity ' +
-            '(market hours), then this slot frees up.',
+             ['Order', 'bounded ask → midpoint → bid limit ladder']],
+      note: 'Queues your approval — during market hours the engine prioritizes a controlled exit inside the configured spread and slippage collars, cancels every unfilled remainder, then frees the slot after the broker confirms the fill.',
       okLabel: 'Confirm SELL ALL',
       onConfirm: async () => {
         if (await queueCommand('APPROVE_SELL_ALL', t, CSRF)) {

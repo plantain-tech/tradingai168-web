@@ -17,10 +17,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'tranche_base'     => max(1, (int) $f('tranche_base', 20)),
             'tranche_step'     => max(0, (int) $f('tranche_step', 5)),
             'dca_gap_bdays'    => max(1, (int) $f('dca_gap_bdays', 5)),
+            'dca_sizing_mode'  => in_array($_POST['dca_sizing_mode'] ?? '',
+                                           ['progressive', 'adaptive_recovery'], true)
+                                      ? $_POST['dca_sizing_mode'] : 'progressive',
+            'dca_max_tranches' => max(2, min(8, (int) $f('dca_max_tranches', 4))),
+            'dca_review_loss_pct' => max(0.01, min(0.50, $f('dca_review_loss_pct', 7) / 100.0)),
+            'campaign_review_days' => max(30, min(365, (int) $f('campaign_review_days', 90))),
             'profit_alert_pct' => max(0.01, $f('profit_alert_pct', 9) / 100.0),
             'loss_alert_usd'   => max(1, $f('loss_alert_usd', 1400)),
             'loss_urgent_usd'  => max(1, $f('loss_urgent_usd', 2100)),
             'fill_wait_s'      => max(5, (int) $f('fill_wait_s', 45)),
+            'max_spread_pct'   => max(0.0001, min(0.02, $f('max_spread_pct', 0.30) / 100.0)),
+            'order_slippage_bps' => max(1, min(100, $f('order_slippage_bps', 15))),
+            'max_campaign_correlation' => max(0.20, min(0.99, $f('max_campaign_correlation', 0.80))),
             'portfolio_profit_alert_usd' => max(1, $f('portfolio_profit_alert_usd', 500)),
             'portfolio_return_alert_pct' => max(0.01, $f('portfolio_return_alert_pct', 9) / 100.0),
         ];
@@ -60,7 +69,7 @@ $token = api_token();
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Settings — Trading AI Horizon</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=25">
+<link rel="stylesheet" href="assets/css/app.css?v=27">
 </head>
 <body>
 <div class="bg"></div>
@@ -86,6 +95,20 @@ $token = api_token();
         <input class="in" name="tranche_step" type="number" value="<?= $s['tranche_step'] ?>"></div>
       <div><label>DCA gap (business days)</label>
         <input class="in" name="dca_gap_bdays" type="number" value="<?= $s['dca_gap_bdays'] ?>"></div>
+      <div><label>DCA sizing method</label>
+        <select class="in" name="dca_sizing_mode">
+          <option value="progressive" <?= ($s['dca_sizing_mode'] ?? 'progressive') === 'progressive' ? 'selected' : '' ?>>Progressive strength · recommended</option>
+          <option value="adaptive_recovery" <?= ($s['dca_sizing_mode'] ?? '') === 'adaptive_recovery' ? 'selected' : '' ?>>Adaptive recovery · base ± step</option>
+        </select></div>
+      <div><label>Maximum tranches / campaign</label>
+        <input class="in" name="dca_max_tranches" type="number" min="2" max="8"
+               value="<?= $s['dca_max_tranches'] ?? 4 ?>"></div>
+      <div><label>DCA review drawdown (%)</label>
+        <input class="in" name="dca_review_loss_pct" type="number" step="0.5"
+               value="<?= round(($s['dca_review_loss_pct'] ?? 0.07) * 100, 2) ?>"></div>
+      <div><label>Mandatory campaign review (days)</label>
+        <input class="in" name="campaign_review_days" type="number" min="30" max="365"
+               value="<?= $s['campaign_review_days'] ?? 90 ?>"></div>
       <div><label>Profit alert (%)</label>
         <input class="in" name="profit_alert_pct" type="number" step="0.5"
                value="<?= round($s['profit_alert_pct'] * 100, 2) ?>"></div>
@@ -95,6 +118,15 @@ $token = api_token();
         <input class="in" name="loss_urgent_usd" type="number" value="<?= $s['loss_urgent_usd'] ?>"></div>
       <div><label>Fill wait (seconds)</label>
         <input class="in" name="fill_wait_s" type="number" value="<?= $s['fill_wait_s'] ?>"></div>
+      <div><label>Maximum spread (%)</label>
+        <input class="in" name="max_spread_pct" type="number" step="0.01"
+               value="<?= round(($s['max_spread_pct'] ?? 0.003) * 100, 3) ?>"></div>
+      <div><label>Order slippage collar (basis points)</label>
+        <input class="in" name="order_slippage_bps" type="number" step="1"
+               value="<?= $s['order_slippage_bps'] ?? 15 ?>"></div>
+      <div><label>Maximum active-stock correlation</label>
+        <input class="in" name="max_campaign_correlation" type="number" min="0.20" max="0.99" step="0.01"
+               value="<?= $s['max_campaign_correlation'] ?? 0.80 ?>"></div>
       <div><label>Portfolio profit alert ($)</label>
         <input class="in" name="portfolio_profit_alert_usd" type="number" step="1"
                value="<?= $s['portfolio_profit_alert_usd'] ?? 500 ?>"></div>
@@ -102,6 +134,9 @@ $token = api_token();
         <input class="in" name="portfolio_return_alert_pct" type="number" step="0.5"
                value="<?= round(($s['portfolio_return_alert_pct'] ?? 0.09) * 100, 2) ?>"></div>
       <div class="full"><button class="btn">Save trading settings</button></div>
+      <p class="muted small full" style="margin:0">Progressive sizing reduces each later tranche.
+        Adaptive recovery retains base ± step, but a larger below-cost tranche is allowed only after
+        the momentum recovery gate passes. Every DCA checkpoint still requires your KEEP BUYING click.</p>
     </form>
   </section>
 

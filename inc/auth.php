@@ -66,8 +66,12 @@ function default_settings(): array {
     return [
         'budget_usd' => 15000, 'max_concurrent' => 3,
         'tranche_base' => 20, 'tranche_step' => 5, 'dca_gap_bdays' => 5,
+        'dca_sizing_mode' => 'progressive', 'dca_max_tranches' => 4,
+        'dca_review_loss_pct' => 0.07, 'campaign_review_days' => 90,
         'profit_alert_pct' => 0.09, 'loss_alert_usd' => 1400,
         'loss_urgent_usd' => 2100, 'fill_wait_s' => 45,
+        'max_spread_pct' => 0.003, 'order_slippage_bps' => 15,
+        'max_campaign_correlation' => 0.80,
         'portfolio_profit_alert_usd' => 500,
         'portfolio_return_alert_pct' => 0.09,
         'ai_model' => 'gpt-oss:20b', 'ollama_host' => 'cloud',

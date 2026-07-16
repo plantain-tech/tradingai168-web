@@ -32,7 +32,8 @@ if (($b['csrf'] ?? '') !== ($_SESSION['csrf'] ?? null)) {
 $action = $b['action'] ?? '';
 $ticker = strtoupper(preg_replace('/[^A-Za-z\-]/', '', $b['ticker'] ?? ''));
 if ($action === 'RUN_ANALYSIS') { $ticker = 'ALL'; }
-if (!in_array($action, ['APPROVE_BUY', 'APPROVE_SELL_ALL', 'CANCEL_CAMPAIGN',
+if (!in_array($action, ['APPROVE_BUY', 'APPROVE_DCA', 'HOLD_DCA',
+                        'APPROVE_SELL_ALL', 'CANCEL_CAMPAIGN',
                         'RUN_ANALYSIS'], true) || !$ticker) {
     http_response_code(400); echo '{"error":"bad command"}'; exit;
 }
