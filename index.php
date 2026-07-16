@@ -38,7 +38,7 @@ $NAV_ACTIVE = 'dash';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Trading AI Horizon — Dashboard</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=25">
+<link rel="stylesheet" href="assets/css/app.css?v=26">
 </head>
 <body>
 <div class="bg"></div>
@@ -109,7 +109,10 @@ $NAV_ACTIVE = 'dash';
              data-signals="<?= htmlspecialchars(json_encode($sig)) ?>">
           <?php if ($isChosen): ?><span class="crown">★ TOP CHOICE</span><?php endif; ?>
           <span><?= $tk ?> <em class="muted"><?= htmlspecialchars($names[$tk] ?? '') ?></em></span>
-          <b><?= htmlspecialchars($t['score']) ?></b>
+          <div class="dd-tile-score"><b><?= htmlspecialchars($t['score']) ?></b>
+            <span class="dd-status dd-<?= strtolower(htmlspecialchars($t['decision'] ?? 'pass')) ?>">
+              <?= htmlspecialchars($t['decision'] ?? 'PASS') ?> · <?= htmlspecialchars($t['confidence'] ?? '—') ?> confidence
+            </span></div>
           <p class="muted small"><?= htmlspecialchars($t['reason']) ?></p>
           <?php if ($isRunning): ?>
             <button class="btn buybtn locked" disabled><span class="lockdot"></span>
@@ -129,10 +132,39 @@ $NAV_ACTIVE = 'dash';
       <?php endforeach; ?>
     </div>
 
+    <?php $reviewed = $p['reviewed'] ?? [];
+          if ($reviewed):
+            $passCount = count(array_filter($reviewed, fn($r) => ($r['decision'] ?? '') === 'PASS'));
+            $watchCount = count(array_filter($reviewed, fn($r) => ($r['decision'] ?? '') === 'WATCH'));
+            $vetoCount = count(array_filter($reviewed, fn($r) => ($r['decision'] ?? '') === 'VETO')); ?>
+      <details class="dd-audit">
+        <summary><span><b>Due-diligence audit</b> · <?= count($reviewed) ?> reviewed</span>
+          <span class="dd-audit-counts"><i class="dd-pass"><?= $passCount ?> PASS</i>
+            <i class="dd-watch"><?= $watchCount ?> WATCH</i>
+            <i class="dd-veto"><?= $vetoCount ?> VETO</i></span></summary>
+        <div class="dd-review-grid">
+          <?php foreach ($reviewed as $r): $decision = strtoupper($r['decision'] ?? 'WATCH'); ?>
+            <article class="dd-review-row">
+              <div><b><?= htmlspecialchars($r['ticker'] ?? '?') ?></b>
+                <span class="dd-status dd-<?= strtolower(htmlspecialchars($decision)) ?>"><?= htmlspecialchars($decision) ?></span></div>
+              <div class="dd-review-scores">
+                <span>Quant <b><?= number_format((float) ($r['quant_score'] ?? 0), 1) ?></b></span>
+                <span>AI DD <b><?= number_format((float) ($r['due_diligence_score'] ?? 0), 1) ?></b></span>
+                <span>Final <b><?= number_format((float) ($r['final_score'] ?? 0), 1) ?></b></span>
+                <span>Evidence <b><?= number_format((float) ($r['evidence_coverage_pct'] ?? 0), 0) ?>%</b></span>
+                <span>Confidence <b><?= htmlspecialchars($r['confidence'] ?? '—') ?></b></span>
+              </div>
+              <p><?= htmlspecialchars($r['reason'] ?? '') ?></p>
+            </article>
+          <?php endforeach; ?>
+        </div>
+      </details>
+    <?php endif; ?>
+
     <div class="ai-panel open" id="aiPanel">
       <button class="ai-panel-head" id="aiPanelHead" type="button">
         <span>Full AI analysis — <b class="grad-t" id="aiPanelTicker"><?= htmlspecialchars($p['chosen'] ?? '') ?></b>
-          <em class="muted small">why / how / trend / risk / score</em></span>
+          <em class="muted small">evidence / bull case / bear case / invalidation / score</em></span>
         <svg class="chev" viewBox="0 0 24 24" width="18" height="18">
           <path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2"
                 stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -217,7 +249,13 @@ function renderPanel(card) {
   document.getElementById('aiPanelTicker').textContent = card.dataset.ticker;
   let sig = {};
   try { sig = JSON.parse(card.dataset.signals || '{}'); } catch (e) {}
-  const label = {price: 'Price', quant_score: 'Quant score', sector: 'Sector',
+  const label = {price: 'Price', decision: 'Decision', final_score: 'Final score',
+                 quant_score: 'Quant score', ai_due_diligence_score: 'AI due diligence',
+                 confidence: 'Evidence confidence', evidence_coverage_pct: 'Evidence coverage',
+                 dd_earnings: 'DD · Earnings (30)', dd_business_quality: 'DD · Business quality (25)',
+                 dd_financial_strength: 'DD · Financial strength (20)',
+                 dd_valuation: 'DD · Valuation (10)', dd_catalysts: 'DD · Catalysts (10)',
+                 dd_attention: 'DD · Attention (5)', sector: 'Sector',
                  momentum_12_1: '12–1 month momentum', momentum_6_1: '6–1 month momentum',
                  momentum_3_1: '3–1 month momentum', relative_spy: 'Strength vs SPY',
                  relative_sector: 'Strength vs sector', high_52w_proximity: '52-week high proximity',
@@ -234,6 +272,9 @@ function renderPanel(card) {
   const fmtV = (k, v) => v == null ? '—'
       : k === 'price' ? '$' + Number(v).toFixed(2)
       : k === 'avg_dollar_volume' ? '$' + (Number(v) / 1e6).toFixed(1) + 'M'
+      : k === 'evidence_coverage_pct' ? Number(v).toFixed(0) + '%'
+      : ['final_score', 'quant_score', 'ai_due_diligence_score'].includes(k)
+        ? Number(v).toFixed(1) + ' / 100'
       : pctSignals.has(k) ? (Number(v) * 100).toFixed(1) + '%'
       : k === 'avg_ma_slope_yr' ? (v >= 0 ? '+' : '') + (v * 100).toFixed(0) + '%'
       : k === 'google_trends' ? Number(v).toFixed(2) + 'x' : v;

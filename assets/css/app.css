@@ -444,3 +444,35 @@ main.hero{margin:26px auto 40px; padding:0 20px}
   color:var(--ink); opacity:1; transition:opacity .18s}
 .ai-panel.open .ai-panel-body{padding:2px 16px 16px}
 .ai-panel-body.swapping{opacity:0}
+.dd-tile-score{display:flex; align-items:center; justify-content:space-between; gap:10px;
+  margin:7px 0 4px}
+.dd-tile-score>b{font-size:28px; line-height:1; color:var(--ink)}
+.dd-status{display:inline-flex; align-items:center; width:max-content; padding:4px 8px;
+  border-radius:999px; font-size:9px; font-weight:800; letter-spacing:.08em;
+  border:1px solid var(--line); background:rgba(255,255,255,.035)}
+.dd-pass{color:#34d399; border-color:rgba(52,211,153,.3); background:rgba(52,211,153,.08)}
+.dd-watch{color:#fbbf24; border-color:rgba(251,191,36,.3); background:rgba(251,191,36,.08)}
+.dd-veto{color:#fb7185; border-color:rgba(251,113,133,.3); background:rgba(251,113,133,.08)}
+.dd-audit{margin:14px 0; border:1px solid var(--line); border-radius:14px;
+  background:rgba(255,255,255,.025); overflow:hidden; text-align:left}
+.dd-audit>summary{list-style:none; cursor:pointer; display:flex; align-items:center;
+  justify-content:space-between; gap:14px; padding:13px 16px; font-size:12px}
+.dd-audit>summary::-webkit-details-marker{display:none}
+.dd-audit>summary:after{content:'＋'; color:var(--brand2); font-size:16px;
+  transition:transform .25s}
+.dd-audit[open]>summary:after{transform:rotate(45deg)}
+.dd-audit-counts{display:flex; gap:7px; margin-left:auto}
+.dd-audit-counts i{font-style:normal; font-size:9px; font-weight:800; letter-spacing:.08em}
+.dd-review-grid{display:grid; gap:8px; padding:0 12px 12px}
+.dd-review-row{padding:11px 12px; border:1px solid var(--line); border-radius:11px;
+  background:rgba(5,8,19,.3)}
+.dd-review-row>div:first-child{display:flex; align-items:center; gap:9px}
+.dd-review-scores{display:flex; flex-wrap:wrap; gap:6px 14px; margin:8px 0;
+  color:var(--muted); font-size:10px}
+.dd-review-scores b{color:var(--ink)}
+.dd-review-row p{margin:0; color:var(--muted); font-size:11px; line-height:1.5}
+@media(max-width:700px){
+  .dd-audit>summary{align-items:flex-start; flex-wrap:wrap}
+  .dd-audit-counts{order:3; width:100%; margin-left:0}
+  .dd-tile-score{align-items:flex-start; flex-direction:column}
+}
