@@ -26,7 +26,7 @@ $NAV_ACTIVE = 'auto-paper';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI Auto Trade · Paper — Trading AI Horizon</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=28">
+<link rel="stylesheet" href="assets/css/app.css?v=29">
 </head>
 <body>
 <div class="bg"></div>
@@ -96,6 +96,61 @@ const dateLabel = s => {
   return Number.isNaN(d.getTime()) ? s : d.toLocaleDateString('en-US',
     {year:'numeric', month:'short', day:'numeric'});
 };
+const esc = value => String(value ?? '').replace(/[&<>'"]/g, ch => ({
+  '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;'
+})[ch]);
+
+function historyEventView(event) {
+  const status = String(event.status || 'RECORDED').toUpperCase();
+  const kind = String(event.kind || 'DCA_REVIEW').toUpperCase();
+  const qty = Number(event.qty || 0);
+  const labels = {
+    FILLED: qty > 0 ? `Bought ${fmt(qty, Number.isInteger(qty) ? 0 : 2)} shares` : 'Filled',
+    PARTIAL: qty > 0 ? `Partially filled · ${fmt(qty, Number.isInteger(qty) ? 0 : 2)} shares` : 'Partially filled',
+    HOLD: 'Hold · no order', BLOCKED: 'Momentum gate blocked',
+    AWAITING_DECISION: 'Review due · awaiting you', APPROVED: 'Keep buying approved',
+    UNFILLED: 'Unfilled · no order working', REJECTED: 'Order rejected'
+  };
+  const title = kind === 'INITIAL_BUY' ? 'Initial buy' : (labels[status] || status.replaceAll('_', ' '));
+  const tone = kind === 'INITIAL_BUY' ? 'initial' : ({
+    FILLED:'filled', PARTIAL:'filled', HOLD:'hold', BLOCKED:'blocked',
+    AWAITING_DECISION:'due', APPROVED:'due', UNFILLED:'blocked', REJECTED:'blocked'
+  })[status] || 'recorded';
+  const meta = [];
+  if (Number(event.price || 0) > 0) meta.push(`$${fmt(event.price)}`);
+  if (Number(event.proposed_qty || 0) > 0 && !qty) meta.push(`${fmt(event.proposed_qty, 0)} shares proposed`);
+  const reasons = Array.isArray(event.gate_reasons) ? event.gate_reasons.filter(Boolean) : [];
+  const detail = event.reason || reasons[0] || (kind === 'INITIAL_BUY'
+    ? 'Confirmed campaign-opening fill' : 'Recorded by the Paper trading engine');
+  return {title, tone, meta, detail};
+}
+
+function dcaHistory(c) {
+  const events = Array.isArray(c.dca_history) ? [...c.dca_history] : [];
+  events.sort((a, b) => String(b.occurred_at || b.scheduled_date || '')
+    .localeCompare(String(a.occurred_at || a.scheduled_date || '')));
+  const total = Number(c.dca_history_total ?? events.length);
+  if (!events.length) return `<div class="dca-history-empty">
+    <span class="dca-pulse"></span>Checkpoint ledger will appear after the next PC-engine sync</div>`;
+  const rows = events.map((event, index) => {
+    const view = historyEventView(event);
+    return `<li class="dca-history-item tone-${view.tone} ${index >= 3 ? 'dca-history-more' : ''}">
+      <span class="dca-history-node" aria-hidden="true"></span>
+      <div class="dca-history-card">
+        <div class="dca-history-top"><time>${esc(dateLabel(event.occurred_at || event.scheduled_date))}</time>
+          <span class="dca-history-status">${esc(view.title)}</span></div>
+        <p>${esc(view.detail)}</p>
+        ${view.meta.length ? `<div class="dca-history-meta">${view.meta.map(esc).join('<i>·</i>')}</div>` : ''}
+      </div></li>`;
+  }).join('');
+  return `<div class="dca-history" data-total="${total}">
+    <div class="dca-history-head"><div><span>Checkpoint history</span><b>Latest recorded activity</b></div>
+      <em>${total} event${total === 1 ? '' : 's'}</em></div>
+    <ol class="dca-history-list">${rows}</ol>
+    ${events.length > 3 ? `<button type="button" class="dca-history-toggle" aria-expanded="false">
+      <span>View full history · ${events.length} events</span><i aria-hidden="true">⌄</i></button>` : ''}
+  </div>`;
+}
 
 function dcaPanel(c) {
   if (!(c.qty > 0)) return '';
@@ -139,10 +194,12 @@ function dcaPanel(c) {
         <span>Next DCA review</span><b>${dateLabel(c.next_dca_date)}</b>
         <em>Every ${c.dca_gap_bdays || '—'} business days</em></div></li>
     </ol>
-    <div class="dca-meta"><span>Tranches <b>${c.tranche_count || 0} / ${c.max_tranches || '—'}</b></span>
+    <div class="dca-meta"><span>Review checkpoints <b>${c.dca_checkpoint_count || 0}</b></span>
+      <span>Filled tranches <b>${c.tranche_count || 0} / ${c.max_tranches || '—'}</b></span>
       <span>Status <b>${String(c.dca_status || 'SCHEDULED').replaceAll('_',' ')}</b></span>
       ${c.last_dca_decision ? `<span>Last choice <b>${String(c.last_dca_decision).replaceAll('_',' ')}</b></span>` : ''}</div>
-    ${reasons ? `<p class="dca-reason">${reasons}</p>` : ''}${controls}</section>`;
+    ${reasons ? `<p class="dca-reason">${esc(reasons)}</p>` : ''}
+    ${dcaHistory(c)}${controls}</section>`;
 }
 
 function renderEngineHealth() {
@@ -294,7 +351,8 @@ function sig(c) {   // structural signature: when this changes, morph the card
           c.campaign_created, c.last_buy_date, c.last_dca_decision_date,
           c.dca_status, c.dca_due, c.next_dca_date, c.dca_gap_bdays,
           c.dca_proposed_qty, c.dca_sizing_mode, c.tranche_count, c.max_tranches,
-          c.last_dca_decision, JSON.stringify(c.dca_gate || {}),
+          c.last_dca_decision, c.dca_checkpoint_count, c.dca_history_total,
+          JSON.stringify(c.dca_gate || {}), JSON.stringify(c.dca_history || []),
           pendingHas(c.ticker, 'APPROVE_SELL_ALL'),
           pendingHas(c.ticker, 'APPROVE_DCA'), pendingHas(c.ticker, 'HOLD_DCA'),
           pendingHas(c.ticker, 'CANCEL_CAMPAIGN')].join('|');
@@ -320,9 +378,21 @@ function renderAll(animateNew = false) {
       setTimeout(() => el.classList.remove('card-enter'), 700);
     } else if (rec.sig !== s) {                     // changed -> morph in place
       const wasAwaiting = rec.qty <= 0, nowLive = (c.qty || 0) > 0;
+      const historyWasExpanded = rec.el.querySelector('.dca-history')?.classList.contains('is-expanded');
       rec.el.classList.add('card-morph');
       setTimeout(() => {
         rec.el.innerHTML = cardHTML(c);
+        if (historyWasExpanded) {
+          const history = rec.el.querySelector('.dca-history');
+          if (history) {
+            history.classList.add('is-expanded');
+            const toggle = history.querySelector('.dca-history-toggle');
+            if (toggle) {
+              toggle.setAttribute('aria-expanded', 'true');
+              toggle.querySelector('span').textContent = 'Show latest 3';
+            }
+          }
+        }
         rec.el.classList.remove('card-morph');
         if (wasAwaiting && nowLive) {               // activation: celebrate it
           rec.el.classList.add('card-activate');
@@ -446,6 +516,15 @@ async function liveQuotes() {
 
 // One-click handlers via delegation (cards re-render dynamically).
 grid.addEventListener('click', e => {
+  const historyToggle = e.target.closest('.dca-history-toggle');
+  if (historyToggle) {
+    const history = historyToggle.closest('.dca-history');
+    const expanded = history.classList.toggle('is-expanded');
+    historyToggle.setAttribute('aria-expanded', String(expanded));
+    historyToggle.querySelector('span').textContent = expanded
+      ? 'Show latest 3' : `View full history · ${history.querySelectorAll('.dca-history-item').length} events`;
+    return;
+  }
   const sell = e.target.closest('.sell-click');
   const cancel = e.target.closest('.cancel-click');
   const dcaBuy = e.target.closest('.dca-buy-click');
