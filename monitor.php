@@ -26,7 +26,7 @@ $NAV_ACTIVE = 'auto-paper';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI Auto Trade · Paper — Trading AI Horizon</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=27">
+<link rel="stylesheet" href="assets/css/app.css?v=28">
 </head>
 <body>
 <div class="bg"></div>
@@ -91,7 +91,7 @@ const quoteMinute = s => {
 const pendingHas = (t, a) => PENDING.some(p => p.t === t && p.a === a);
 const showable = c => (c.status === 'ACTIVE' || (c.qty || 0) > 0);
 const dateLabel = s => {
-  if (!s) return 'Not available';
+  if (!s) return 'Syncing…';
   const d = new Date(String(s).length === 10 ? s + 'T12:00:00' : s);
   return Number.isNaN(d.getTime()) ? s : d.toLocaleDateString('en-US',
     {year:'numeric', month:'short', day:'numeric'});
@@ -128,12 +128,17 @@ function dcaPanel(c) {
     <div class="dca-panel-head"><div><span class="dca-kicker">Advanced DCA checkpoint</span>
       <b>${due ? (eligible ? 'Your decision is due' : 'Review required · buying blocked') : 'Scheduled & monitoring'}</b></div>
       <span class="dca-mode">${mode}</span></div>
-    <div class="dca-dates">
-      <div><span>Campaign created</span><b>${dateLabel(c.campaign_created)}</b></div>
-      <i></i><div><span>Last buy / decision</span><b>${dateLabel(c.last_dca_decision_date || c.last_buy_date)}</b></div>
-      <i></i><div class="${due ? 'is-due' : ''}"><span>Next DCA review</span><b>${dateLabel(c.next_dca_date)}</b>
-        <em>Every ${c.dca_gap_bdays || '—'} business days</em></div>
-    </div>
+    <ol class="dca-timeline" aria-label="${t} campaign timeline">
+      <li class="dca-step is-complete"><span class="dca-step-number">1</span><div>
+        <span>Campaign created</span><b>${dateLabel(c.campaign_created)}</b>
+        <em>Strategy lifecycle begins</em></div></li>
+      <li class="dca-step ${c.last_dca_decision_date ? 'is-complete' : ''}"><span class="dca-step-number">2</span><div>
+        <span>Last buy / decision</span><b>${dateLabel(c.last_dca_decision_date || c.last_buy_date)}</b>
+        <em>${c.last_dca_decision ? String(c.last_dca_decision).replaceAll('_',' ') : 'Latest authorized action'}</em></div></li>
+      <li class="dca-step ${due ? 'is-due' : 'is-upcoming'}"><span class="dca-step-number">3</span><div>
+        <span>Next DCA review</span><b>${dateLabel(c.next_dca_date)}</b>
+        <em>Every ${c.dca_gap_bdays || '—'} business days</em></div></li>
+    </ol>
     <div class="dca-meta"><span>Tranches <b>${c.tranche_count || 0} / ${c.max_tranches || '—'}</b></span>
       <span>Status <b>${String(c.dca_status || 'SCHEDULED').replaceAll('_',' ')}</b></span>
       ${c.last_dca_decision ? `<span>Last choice <b>${String(c.last_dca_decision).replaceAll('_',' ')}</b></span>` : ''}</div>
@@ -286,7 +291,10 @@ function cardHTML(c) {
 
 function sig(c) {   // structural signature: when this changes, morph the card
   return [c.qty, c.status, c.invested, c.avg_cost,
-          c.dca_status, c.next_dca_date, c.dca_proposed_qty, c.last_dca_decision,
+          c.campaign_created, c.last_buy_date, c.last_dca_decision_date,
+          c.dca_status, c.dca_due, c.next_dca_date, c.dca_gap_bdays,
+          c.dca_proposed_qty, c.dca_sizing_mode, c.tranche_count, c.max_tranches,
+          c.last_dca_decision, JSON.stringify(c.dca_gate || {}),
           pendingHas(c.ticker, 'APPROVE_SELL_ALL'),
           pendingHas(c.ticker, 'APPROVE_DCA'), pendingHas(c.ticker, 'HOLD_DCA'),
           pendingHas(c.ticker, 'CANCEL_CAMPAIGN')].join('|');
