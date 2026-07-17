@@ -73,7 +73,8 @@ const TARGET_PCT = <?= (float) $settings['profit_alert_pct'] * 100 ?>;
 const PORTFOLIO_PROFIT_TARGET = <?= (float) ($settings['portfolio_profit_alert_usd'] ?? 500) ?>;
 const PORTFOLIO_RETURN_TARGET = <?= (float) ($settings['portfolio_return_alert_pct'] ?? 0.09) * 100 ?>;
 const LIMITS = 'limits: +<?= round($settings['profit_alert_pct'] * 100) ?>% alert · −$<?=
-    number_format($settings['loss_alert_usd']) ?> / −$<?= number_format($settings['loss_urgent_usd']) ?>';
+    number_format($settings['loss_alert_usd']) ?> / −$<?= number_format($settings['loss_urgent_usd']) ?> or −<?=
+    round(($settings['loss_urgent_pct'] ?? 0.10) * 100, 1) ?>% urgent';
 
 let CAMPS = <?= json_encode($campaigns) ?>;
 let PENDING = <?= json_encode($pending) ?>;
@@ -156,6 +157,7 @@ function dcaPanel(c) {
   if (!(c.qty > 0)) return '';
   const t = c.ticker, due = !!c.dca_due, gate = c.dca_gate || {};
   const eligible = gate.eligible === true && c.dca_status !== 'BLOCKED';
+  const riskPaused = !!c.dca_paused || c.dca_status === 'PAUSED_ALERT';
   const approvePending = pendingHas(t, 'APPROVE_DCA');
   const holdPending = pendingHas(t, 'HOLD_DCA');
   const proposed = Number(c.dca_proposed_qty || 0);
@@ -171,7 +173,9 @@ function dcaPanel(c) {
       controls = `<div class="dca-actions">
         <button class="dca-choice dca-keep dca-buy-click" data-ticker="${t}"
           ${eligible && proposed > 0 ? '' : 'disabled'}>
-          <span>Keep buying</span><b>${eligible && proposed > 0 ? proposed + ' shares' : 'Momentum gate blocked'}</b></button>
+          <span>Keep buying</span><b>${eligible && proposed > 0
+            ? (riskPaused ? `Explicit override · ${proposed} shares` : proposed + ' shares')
+            : 'Momentum gate blocked'}</b></button>
         <button class="dca-choice dca-hold dca-hold-click" data-ticker="${t}">
           <span>Hold</span><b>No order · review later</b></button></div>`;
     }
@@ -181,7 +185,8 @@ function dcaPanel(c) {
   }
   return `<section class="dca-panel ${due ? (eligible ? 'dca-due' : 'dca-blocked') : ''}">
     <div class="dca-panel-head"><div><span class="dca-kicker">Advanced DCA checkpoint</span>
-      <b>${due ? (eligible ? 'Your decision is due' : 'Review required · buying blocked') : 'Scheduled & monitoring'}</b></div>
+      <b>${due ? (riskPaused ? 'Alert review · buying paused' :
+        (eligible ? 'Your decision is due' : 'Review required · buying blocked')) : 'Scheduled & monitoring'}</b></div>
       <span class="dca-mode">${mode}</span></div>
     <ol class="dca-timeline" aria-label="${t} campaign timeline">
       <li class="dca-step is-complete"><span class="dca-step-number">1</span><div>
@@ -290,7 +295,9 @@ function renderPortfolioSummary() {
   }
   const value = fresh.reduce((sum, q) => sum + Number(q.value || 0), 0);
   const invested = fresh.reduce((sum, q) => sum + Number(q.qty || 0) * Number(q.avg_cost || 0), 0);
-  const pnl = fresh.reduce((sum, q) => sum + Number(q.pnl || 0), 0);
+  const dividends = CAMPS.filter(showable).reduce(
+    (sum, c) => sum + Number(c.confirmed_dividends || 0), 0);
+  const pnl = fresh.reduce((sum, q) => sum + Number(q.pnl || 0), 0) + dividends;
   const pct = invested > 0 ? (pnl / invested) * 100 : 0;
   const stamp = fresh.map(q => quoteMinute(q.quote_time)).filter(Boolean).sort().pop();
   summary.classList.remove('portfolio-stale');
@@ -351,6 +358,7 @@ function sig(c) {   // structural signature: when this changes, morph the card
           c.campaign_created, c.last_buy_date, c.last_dca_decision_date,
           c.dca_status, c.dca_due, c.next_dca_date, c.dca_gap_bdays,
           c.dca_proposed_qty, c.dca_sizing_mode, c.tranche_count, c.max_tranches,
+          c.risk_state, c.dca_paused, c.confirmed_dividends, c.total_return,
           c.last_dca_decision, c.dca_checkpoint_count, c.dca_history_total,
           JSON.stringify(c.dca_gate || {}), JSON.stringify(c.dca_history || []),
           pendingHas(c.ticker, 'APPROVE_SELL_ALL'),
@@ -450,14 +458,16 @@ function renderBrokerMarks() {
       continue;
     }
     const q = live.mark, avg = Number(q.avg_cost || 0);
+    const dividends = Number(rec.data?.confirmed_dividends || 0);
     const old = parseFloat(px.textContent.replace(/[$,]/g, ''));
     px.textContent = '$' + fmt(q.price);
     if (old && Math.abs(old - q.price) > 0.004) {
       px.classList.remove('flash-up', 'flash-dn'); void px.offsetWidth;
       px.classList.add(q.price > old ? 'flash-up' : 'flash-dn');
     }
-    const pl = Number(q.pnl);
-    const plp = avg > 0 ? (q.price / avg - 1) * 100 : 0;
+    const pl = Number(q.pnl) + dividends;
+    const invested = Number(q.qty || 0) * avg;
+    const plp = invested > 0 ? (pl / invested) * 100 : 0;
     chg.textContent = 'Moomoo last · ' + quoteMinute(q.quote_time);
     chg.className = 'live-chg ok';
     plEl.textContent = (pl >= 0 ? '+$' : '−$') + fmt(Math.abs(pl));
@@ -469,7 +479,7 @@ function renderBrokerMarks() {
     bar.style.width = Math.min(100, Math.max(2, (plp / TARGET_PCT) * 100)) + '%';
     bar.className = 'plbar-fill ' + (plp >= 0 ? 'up' : 'dn');
     note.textContent = 'Moomoo OpenD · last price · ' + quoteMinute(q.quote_time) +
-      ' · ' + LIMITS;
+      (dividends ? ` · confirmed dividends +$${fmt(dividends)}` : '') + ' · ' + LIMITS;
   }
 }
 

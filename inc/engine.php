@@ -64,12 +64,18 @@ function command_create(string $action, string $ticker, string $note = ''): void
 
 function commands_pending(): array {
     ensure_engine_tables();
-    return db()->query("SELECT id, action, ticker, note, created_at FROM commands
+    return db()->query("SELECT id, action, ticker, note, created_at,
+                               UNIX_TIMESTAMP(created_at) AS created_epoch FROM commands
                         WHERE status='pending' ORDER BY id")->fetchAll();
 }
 
 function command_done(int $id): void {
     db()->prepare("UPDATE commands SET status='done', done_at=NOW() WHERE id=?")
+        ->execute([$id]);
+}
+
+function command_expire(int $id): void {
+    db()->prepare("UPDATE commands SET status='expired', done_at=NOW() WHERE id=?")
         ->execute([$id]);
 }
 

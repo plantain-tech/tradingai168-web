@@ -26,6 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'profit_alert_pct' => max(0.01, $f('profit_alert_pct', 9) / 100.0),
             'loss_alert_usd'   => max(1, $f('loss_alert_usd', 1400)),
             'loss_urgent_usd'  => max(1, $f('loss_urgent_usd', 2100)),
+            'loss_urgent_pct'  => max(0.01, min(0.50, $f('loss_urgent_pct', 10) / 100.0)),
             'fill_wait_s'      => max(5, (int) $f('fill_wait_s', 45)),
             'max_spread_pct'   => max(0.0001, min(0.02, $f('max_spread_pct', 0.30) / 100.0)),
             'order_slippage_bps' => max(1, min(100, $f('order_slippage_bps', 15))),
@@ -116,6 +117,9 @@ $token = api_token();
         <input class="in" name="loss_alert_usd" type="number" value="<?= $s['loss_alert_usd'] ?>"></div>
       <div><label>Urgent loss ($)</label>
         <input class="in" name="loss_urgent_usd" type="number" value="<?= $s['loss_urgent_usd'] ?>"></div>
+      <div><label>Urgent loss review (%)</label>
+        <input class="in" name="loss_urgent_pct" type="number" step="0.5" min="1" max="50"
+               value="<?= round(($s['loss_urgent_pct'] ?? 0.10) * 100, 2) ?>"></div>
       <div><label>Fill wait (seconds)</label>
         <input class="in" name="fill_wait_s" type="number" value="<?= $s['fill_wait_s'] ?>"></div>
       <div><label>Maximum spread (%)</label>

@@ -17,6 +17,11 @@ if (bearer_ok()) {                                    // ---- engine mode ----
         echo '{"ok":true}';
         exit;
     }
+    if (!empty($b['expire'])) {
+        command_expire((int) $b['expire']);
+        echo '{"ok":true}';
+        exit;
+    }
     http_response_code(400); echo '{"error":"bad engine request"}'; exit;
 }
 
