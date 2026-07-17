@@ -38,7 +38,7 @@ $NAV_ACTIVE = 'dash';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Trading AI Horizon — Dashboard</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=29">
+<link rel="stylesheet" href="assets/css/app.css?v=30">
 </head>
 <body>
 <div class="bg"></div>
@@ -102,7 +102,7 @@ $NAV_ACTIVE = 'dash';
             $analysis = $t['analysis'] ?? $t['reason'] ?? '';
             if ($isChosen && !empty($p['rationale'])) { $analysis = $p['rationale']; }
             $sig = $t['signals'] ?? []; ?>
-        <div class="tile pick-tile selectable <?= $isChosen ? 'chosen selected' : '' ?>"
+        <div class="tile pick-tile analysis-source selectable <?= $isChosen ? 'chosen selected' : '' ?>"
              data-ticker="<?= $tk ?>" role="button" tabindex="0"
              data-analysis="<?= htmlspecialchars($analysis) ?>"
              data-basis="<?= htmlspecialchars($t['score_basis'] ?? '') ?>"
@@ -138,14 +138,43 @@ $NAV_ACTIVE = 'dash';
             $passCount = count(array_filter($reviewed, fn($r) => ($r['decision'] ?? '') === 'PASS'));
             $watchCount = count(array_filter($reviewed, fn($r) => ($r['decision'] ?? '') === 'WATCH'));
             $vetoCount = count(array_filter($reviewed, fn($r) => ($r['decision'] ?? '') === 'VETO')); ?>
-      <details class="dd-audit">
-        <summary><span><b>Due-diligence audit</b> · <?= count($reviewed) ?> reviewed</span>
+      <section class="dd-audit open" id="ddAudit">
+        <button class="dd-audit-toggle" id="ddAuditToggle" type="button"
+                aria-expanded="true" aria-controls="ddAuditPanel">
+          <span><b>Due-diligence audit</b> · <?= count($reviewed) ?> reviewed</span>
           <span class="dd-audit-counts"><i class="dd-pass"><?= $passCount ?> PASS</i>
             <i class="dd-watch"><?= $watchCount ?> WATCH</i>
-            <i class="dd-veto"><?= $vetoCount ?> VETO</i></span></summary>
-        <div class="dd-review-grid">
-          <?php foreach ($reviewed as $r): $decision = strtoupper($r['decision'] ?? 'WATCH'); ?>
-            <article class="dd-review-row">
+            <i class="dd-veto"><?= $vetoCount ?> VETO</i></span>
+          <svg class="dd-audit-chev" viewBox="0 0 24 24" width="18" height="18"
+               aria-hidden="true"><path d="M7 10l5 5 5-5" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round"
+               stroke-linejoin="round"/></svg>
+        </button>
+        <div class="dd-audit-wrap" id="ddAuditPanel"><div class="dd-audit-body">
+          <div class="dd-review-grid">
+          <?php foreach ($reviewed as $r):
+              $decision = strtoupper($r['decision'] ?? 'WATCH');
+              $qwenVerdict = strtoupper($r['challenger']['effective_verdict'] ?? 'UNAVAILABLE');
+              $qwenReason = $r['challenger']['reason'] ?? '';
+              $reviewSignals = [
+                'decision' => $decision,
+                'quant_score' => $r['quant_score'] ?? null,
+                'ai_due_diligence_score' => $r['due_diligence_score'] ?? null,
+                'final_score' => $r['final_score'] ?? null,
+                'evidence_coverage_pct' => $r['evidence_coverage_pct'] ?? null,
+                'confidence' => $r['confidence'] ?? null,
+                'challenger_model' => $p['challenger']['model'] ?? 'qwen/qwen3.6-27b',
+                'challenger_status' => $p['challenger']['status'] ?? strtolower($qwenVerdict),
+                'challenger_verdict' => $qwenVerdict,
+                'challenger_reason' => $qwenReason,
+              ]; ?>
+            <button class="dd-review-row analysis-source selectable" type="button"
+                    data-ticker="<?= htmlspecialchars($r['ticker'] ?? '?') ?>"
+                    data-analysis="<?= htmlspecialchars($r['analysis'] ?? $r['reason'] ?? '') ?>"
+                    data-basis="<?= htmlspecialchars($r['score_basis'] ?? '') ?>"
+                    data-score="<?= htmlspecialchars($r['final_score'] ?? 0) ?>"
+                    data-signals="<?= htmlspecialchars(json_encode($reviewSignals)) ?>"
+                    aria-label="View full AI analysis for <?= htmlspecialchars($r['ticker'] ?? 'stock') ?>">
               <div><b><?= htmlspecialchars($r['ticker'] ?? '?') ?></b>
                 <span class="dd-status dd-<?= strtolower(htmlspecialchars($decision)) ?>"><?= htmlspecialchars($decision) ?></span></div>
               <div class="dd-review-scores">
@@ -154,24 +183,31 @@ $NAV_ACTIVE = 'dash';
                 <span>Final <b><?= number_format((float) ($r['final_score'] ?? 0), 1) ?></b></span>
                 <span>Evidence <b><?= number_format((float) ($r['evidence_coverage_pct'] ?? 0), 0) ?>%</b></span>
                 <span>Confidence <b><?= htmlspecialchars($r['confidence'] ?? '—') ?></b></span>
-                <span>Qwen <b><?= htmlspecialchars($r['challenger']['effective_verdict'] ?? 'UNAVAILABLE') ?></b></span>
+                <span>Qwen <b><?= htmlspecialchars($qwenVerdict) ?></b></span>
               </div>
               <p><?= htmlspecialchars($r['reason'] ?? '') ?></p>
-            </article>
+              <?php if (in_array($qwenVerdict, ['FAILED', 'UNAVAILABLE'], true) && $qwenReason): ?>
+                <small class="qwen-note">Qwen <?= strtolower($qwenVerdict) ?>:
+                  <?= htmlspecialchars($qwenReason) ?></small>
+              <?php endif; ?>
+              <span class="dd-review-action">View full analysis <b>↓</b></span>
+            </button>
           <?php endforeach; ?>
-        </div>
-      </details>
+          </div>
+        </div></div>
+      </section>
     <?php endif; ?>
 
     <div class="ai-panel open" id="aiPanel">
-      <button class="ai-panel-head" id="aiPanelHead" type="button">
+      <button class="ai-panel-head" id="aiPanelHead" type="button"
+              aria-expanded="true" aria-controls="aiPanelContent">
         <span>Full AI analysis — <b class="grad-t" id="aiPanelTicker"><?= htmlspecialchars($p['chosen'] ?? '') ?></b>
           <em class="muted small">evidence / bull case / bear case / invalidation / score</em></span>
         <svg class="chev" viewBox="0 0 24 24" width="18" height="18">
           <path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2"
                 stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
-      <div class="ai-panel-wrap"><div class="ai-panel-body" id="aiPanelBody"></div></div>
+      <div class="ai-panel-wrap" id="aiPanelContent"><div class="ai-panel-body" id="aiPanelBody"></div></div>
     </div>
 
     <p class="muted small">Click a card to read its analysis and score breakdown.
@@ -316,27 +352,53 @@ function mdReport(text) {
     return line.trim() ? `<p>${esc(line)}</p>` : '';
   }).join('');
 }
+const audit = document.getElementById('ddAudit');
+const auditToggle = document.getElementById('ddAuditToggle');
+if (audit && auditToggle) {
+  auditToggle.addEventListener('click', () => {
+    const opening = !audit.classList.contains('open');
+    audit.classList.toggle('open', opening);
+    auditToggle.setAttribute('aria-expanded', opening ? 'true' : 'false');
+  });
+}
+
 if (panel) {
-  document.getElementById('aiPanelHead').addEventListener('click',
-    () => panel.classList.toggle('open'));
-  const cards = document.querySelectorAll('.pick-tile.selectable');
+  const panelHead = document.getElementById('aiPanelHead');
+  panelHead.addEventListener('click', () => {
+    const opening = !panel.classList.contains('open');
+    panel.classList.toggle('open', opening);
+    panelHead.setAttribute('aria-expanded', opening ? 'true' : 'false');
+  });
+  const cards = document.querySelectorAll('.analysis-source.selectable');
   cards.forEach(card => {
     const select = () => {
-      document.querySelectorAll('.pick-tile.selected')
+      const ticker = card.dataset.ticker;
+      document.querySelectorAll('.analysis-source.selected')
         .forEach(c => c.classList.remove('selected'));
-      card.classList.add('selected');
+      document.querySelectorAll('.analysis-source').forEach(c => {
+        if (c.dataset.ticker === ticker) c.classList.add('selected');
+      });
       const body = document.getElementById('aiPanelBody');
       body.classList.add('swapping');
       setTimeout(() => {
         renderPanel(card);
         body.classList.remove('swapping');
         panel.classList.add('open');
+        panelHead.setAttribute('aria-expanded', 'true');
+        if (card.classList.contains('dd-review-row')) {
+          panel.scrollIntoView({behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+            ? 'auto' : 'smooth', block: 'start'});
+        }
       }, 180);
     };
-    card.addEventListener('click', e => { if (!e.target.closest('button')) select(); });
-    card.addEventListener('keydown', e => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(); }
+    card.addEventListener('click', e => {
+      if (card.classList.contains('dd-review-row') || !e.target.closest('button')) select();
     });
+    if (!card.matches('button')) {
+      card.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(); }
+      });
+    }
   });
   const chosen = document.querySelector('.pick-tile.chosen') || cards[0];
   if (chosen) renderPanel(chosen);
