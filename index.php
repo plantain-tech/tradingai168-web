@@ -68,7 +68,7 @@ $NAV_ACTIVE = 'dash';
   <?php else: ?>
     <button class="analyze-btn" id="analyzeBtn">
       <span class="ab-spark">✦</span> Analyze &amp; Pick Up to 3 — AI powered
-      <em>multi-horizon momentum · relative strength · Google Trends · <?= htmlspecialchars($settings['ai_model']) ?>
+      <em>multi-horizon momentum · relative strength · Open Attention Trend · <?= htmlspecialchars($settings['ai_model']) ?>
         <?= !empty($settings['ai_challenger_enabled']) ? ' · Qwen challenger' : '' ?></em>
     </button>
   <?php endif; ?>
@@ -207,8 +207,8 @@ $NAV_ACTIVE = 'dash';
     <p class="an-stage" id="anStage">Contacting engine…</p>
     <div class="an-track"><div class="an-fill" id="anFill"></div></div>
     <p class="an-pct" id="anPct">0%</p>
-    <p class="muted small" id="anHint">Screening the full universe, scanning buzz,
-      Google Trends, liquidity, earnings and risk, then running the structured AI audit — usually 3–8 minutes.</p>
+    <p class="muted small" id="anHint">Screening the full universe, verifying company identity and
+      14-day Wikimedia attention, liquidity, earnings and risk, then running the structured AI audit — usually 3–8 minutes.</p>
   </div>
 </div>
 
@@ -271,7 +271,15 @@ function renderPanel(card) {
                  earnings_in_bdays: 'Earnings in business days',
                  avg_ma_slope_yr: 'Avg MA slope /yr',
                  news_articles_14d: 'News articles (14d)', reddit_mentions: 'Reddit mentions',
-                 buzz_score: 'Buzz score', google_trends: 'Trends momentum'};
+                 buzz_score: 'Buzz score',
+                 open_attention_ratio: 'Open attention · 14d / baseline',
+                 open_attention_week_ratio: 'Open attention · latest 7d / prior 7d',
+                 open_attention_state: 'Open attention state',
+                 open_attention_elevated_days: 'Elevated attention days',
+                 open_attention_spike_share: 'Largest-day share',
+                 open_attention_latest_date: 'Attention data through',
+                 open_attention_source: 'Attention source',
+                 open_attention_page: 'Verified company page'};
   const pctSignals = new Set(['momentum_12_1', 'momentum_6_1', 'momentum_3_1',
     'relative_spy', 'relative_sector', 'high_52w_proximity', 'trend_consistency',
     'volatility_63d', 'max_drawdown_63d', 'spread_pct', 'earnings_momentum']);
@@ -283,7 +291,11 @@ function renderPanel(card) {
         ? Number(v).toFixed(1) + ' / 100'
       : pctSignals.has(k) ? (Number(v) * 100).toFixed(1) + '%'
       : k === 'avg_ma_slope_yr' ? (v >= 0 ? '+' : '') + (v * 100).toFixed(0) + '%'
-      : k === 'google_trends' ? Number(v).toFixed(2) + 'x' : v;
+      : ['open_attention_ratio', 'open_attention_week_ratio'].includes(k)
+        ? Number(v).toFixed(2) + 'x'
+      : k === 'open_attention_spike_share' ? (Number(v) * 100).toFixed(1) + '%'
+      : k === 'open_attention_elevated_days' ? Number(v).toFixed(0) + ' / 14'
+      : v;
   const sigHtml = Object.keys(label).map(k =>
       `<div class="sigcell"><span>${label[k]}</span><b>${fmtV(k, sig[k])}</b></div>`).join('');
   const basis = card.dataset.basis
@@ -399,7 +411,7 @@ if (anBtn) anBtn.addEventListener('click', async () => {
   const pct = document.getElementById('anPct');
   const stage = document.getElementById('anStage');
   const stages = [[4, 'Contacting engine…'], [15, 'Screening 500+ stocks — momentum, liquidity & risk'],
-                  [35, 'Comparing SPY, sectors, earnings & Google Trends'],
+                  [35, 'Comparing SPY, sectors, earnings & Open Attention Trend'],
                   [50, 'AI pass 1 — shortlisting the strongest candidates…'],
                   [64, 'Deep due diligence: financials, insiders, earnings calendar…'],
                   [82, 'AI pass 2 — writing the analyst report…'],
