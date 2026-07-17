@@ -75,6 +75,8 @@ function default_settings(): array {
         'portfolio_profit_alert_usd' => 500,
         'portfolio_return_alert_pct' => 0.09,
         'ai_model' => 'gpt-oss:20b', 'ollama_host' => 'cloud',
+        'ai_challenger_enabled' => true,
+        'ai_challenger_model' => 'qwen/qwen3.6-27b',
     ];
 }
 

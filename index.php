@@ -68,7 +68,8 @@ $NAV_ACTIVE = 'dash';
   <?php else: ?>
     <button class="analyze-btn" id="analyzeBtn">
       <span class="ab-spark">✦</span> Analyze &amp; Pick Up to 3 — AI powered
-      <em>multi-horizon momentum · relative strength · Google Trends · <?= htmlspecialchars($settings['ai_model']) ?></em>
+      <em>multi-horizon momentum · relative strength · Google Trends · <?= htmlspecialchars($settings['ai_model']) ?>
+        <?= !empty($settings['ai_challenger_enabled']) ? ' · Qwen challenger' : '' ?></em>
     </button>
   <?php endif; ?>
 
@@ -153,6 +154,7 @@ $NAV_ACTIVE = 'dash';
                 <span>Final <b><?= number_format((float) ($r['final_score'] ?? 0), 1) ?></b></span>
                 <span>Evidence <b><?= number_format((float) ($r['evidence_coverage_pct'] ?? 0), 0) ?>%</b></span>
                 <span>Confidence <b><?= htmlspecialchars($r['confidence'] ?? '—') ?></b></span>
+                <span>Qwen <b><?= htmlspecialchars($r['challenger']['effective_verdict'] ?? 'UNAVAILABLE') ?></b></span>
               </div>
               <p><?= htmlspecialchars($r['reason'] ?? '') ?></p>
             </article>
@@ -252,6 +254,10 @@ function renderPanel(card) {
   const label = {price: 'Price', decision: 'Decision', final_score: 'Final score',
                  quant_score: 'Quant score', ai_due_diligence_score: 'AI due diligence',
                  confidence: 'Evidence confidence', evidence_coverage_pct: 'Evidence coverage',
+                 challenger_model: 'Independent challenger',
+                 challenger_status: 'Challenger status',
+                 challenger_verdict: 'Qwen verdict',
+                 challenger_reason: 'Qwen review',
                  dd_earnings: 'DD · Earnings (30)', dd_business_quality: 'DD · Business quality (25)',
                  dd_financial_strength: 'DD · Financial strength (20)',
                  dd_valuation: 'DD · Valuation (10)', dd_catalysts: 'DD · Catalysts (10)',

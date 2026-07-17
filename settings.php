@@ -5,6 +5,7 @@ require_login();
 
 $msg = $err = '';
 $FREE_MODELS = ['gpt-oss:20b', 'gpt-oss:120b'];
+$FREE_CHALLENGERS = ['qwen/qwen3.6-27b'];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrf_check();
@@ -39,10 +40,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else { save_settings($s); $msg = 'Trading & risk settings saved.'; }
     } elseif ($act === 'ai') {
         $model = trim($_POST['ai_model_custom'] ?: ($_POST['ai_model'] ?? 'gpt-oss:20b'));
+        $challenger = $_POST['ai_challenger_model'] ?? 'qwen/qwen3.6-27b';
+        if (!in_array($challenger, $FREE_CHALLENGERS, true)) {
+            $challenger = 'qwen/qwen3.6-27b';
+        }
         save_settings(['ai_model' => $model,
                        'ollama_host' => ($_POST['ollama_host'] ?? 'cloud') === 'cloud'
-                                        ? 'cloud' : trim($_POST['ollama_host_custom'] ?? 'cloud')]);
-        $msg = "AI model set to {$model}.";
+                                        ? 'cloud' : trim($_POST['ollama_host_custom'] ?? 'cloud'),
+                       'ai_challenger_enabled' => isset($_POST['ai_challenger_enabled']),
+                       'ai_challenger_model' => $challenger]);
+        $msg = "AI research settings saved. Primary: {$model}.";
     } elseif ($act === 'account') {
         $ne = trim($_POST['new_email'] ?? '');
         $np = $_POST['new_password'] ?? '';
@@ -145,7 +152,7 @@ $token = api_token();
   </section>
 
   <section class="card">
-    <h2>AI Model (Ollama — plug in / out freely)</h2>
+    <h2>AI Research Models</h2>
     <form method="post">
       <input type="hidden" name="csrf" value="<?= csrf_token() ?>">
       <input type="hidden" name="action" value="ai">
@@ -165,6 +172,22 @@ $token = api_token();
       </select>
       <input class="in" name="ollama_host_custom" placeholder="http://localhost:11434"
              value="<?= ($s['ollama_host'] ?? 'cloud') === 'cloud' ? '' : htmlspecialchars($s['ollama_host']) ?>">
+      <hr style="border:0;border-top:1px solid var(--line);margin:22px 0">
+      <label style="display:flex;align-items:center;gap:10px">
+        <input type="checkbox" name="ai_challenger_enabled" value="1"
+          <?= !empty($s['ai_challenger_enabled']) ? 'checked' : '' ?>>
+        Enable independent Qwen challenger
+      </label>
+      <label>Free-quota challenger model</label>
+      <select class="in" name="ai_challenger_model">
+        <?php foreach ($FREE_CHALLENGERS as $m): ?>
+          <option value="<?= $m ?>" <?= ($s['ai_challenger_model'] ?? '') === $m ? 'selected' : '' ?>><?= $m ?></option>
+        <?php endforeach; ?>
+      </select>
+      <p class="muted small">Research only. Qwen reviews shortlisted candidates once and can only
+        downgrade an evidence-backed risk; it cannot approve a stock or control an order.
+        Requires <code>groq_api_key</code> in the PC's private <code>config/secrets.json</code>.
+        Missing quota or an outage is shown honestly and never interrupts Moomoo monitoring.</p>
       <button class="btn">Save AI settings</button>
     </form>
   </section>
