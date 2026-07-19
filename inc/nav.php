@@ -8,7 +8,7 @@ $SHOW_MARKET_PULSE = in_array($NAV_ACTIVE,
    keeping these rules here prevents mixed-version menu layout breakage. */
 .topbar{position:fixed!important;top:0!important;left:0!important;right:0!important;width:100%!important}
 body.has-topbar{padding-top:55px!important}
-body.has-market-pulse{padding-top:139px!important}
+body.has-market-pulse{padding-top:55px!important}
 .tb-nav .tb-menu{position:relative; display:block; flex:0 0 auto}
 .tb-nav .tb-menu-trigger{display:flex!important; align-items:center!important;
   justify-content:center!important; gap:7px!important; width:auto!important;

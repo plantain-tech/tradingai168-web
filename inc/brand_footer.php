@@ -9,6 +9,10 @@
 (() => {
   const button = document.currentScript.previousElementSibling;
   if (!button || !button.classList.contains('scroll-top')) return;
+  // Several page containers animate with transforms, which would otherwise
+  // make a fixed descendant behave like footer content. Move this viewport
+  // control directly under body so it always follows the browser window.
+  document.body.appendChild(button);
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
   const update = () => button.classList.toggle('visible', window.scrollY > 320);
   button.addEventListener('click', () => window.scrollTo({top: 0,
