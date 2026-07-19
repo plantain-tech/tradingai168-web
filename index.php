@@ -38,7 +38,7 @@ $NAV_ACTIVE = 'dash';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Trading AI Horizon — Dashboard</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=30">
+<link rel="stylesheet" href="assets/css/app.css?v=31">
 </head>
 <body>
 <div class="bg"></div>
@@ -132,6 +132,80 @@ $NAV_ACTIVE = 'dash';
         </div>
       <?php endforeach; ?>
     </div>
+
+    <?php $trace = $p['analysis_trace'] ?? null;
+          $traceComplete = !empty($trace['integrity_complete']);
+          $traceStages = is_array($trace['stages'] ?? null) ? $trace['stages'] : [];
+          $traceOutcome = is_array($trace['outcome'] ?? null) ? $trace['outcome'] : []; ?>
+    <section class="analysis-brain <?= $trace ? ($traceComplete ? 'trace-complete' : 'trace-incomplete') : 'trace-legacy' ?>"
+             aria-labelledby="analysisBrainTitle">
+      <div class="brain-head">
+        <div class="brain-heading">
+          <div class="brain-mark" aria-hidden="true">
+            <svg viewBox="0 0 64 64" role="img">
+              <path d="M31 12c-7-7-18-2-17 7-7 2-8 12-2 16-4 8 3 16 11 14 2 6 9 6 12 1V16c0-4-1-6-4-4Z"/>
+              <path d="M33 12c7-7 18-2 17 7 7 2 8 12 2 16 4 8-3 16-11 14-2 6-9 6-12 1V16c0-4 1-6 4-4Z"/>
+              <path class="brain-circuit" d="M20 23h8l4 5m12-5h-8l-4 5M17 37h9l6-5m15 5h-9l-6-5M24 47v-6l8-5m8 11v-6l-8-5"/>
+              <circle cx="20" cy="23" r="2"/><circle cx="44" cy="23" r="2"/>
+              <circle cx="17" cy="37" r="2"/><circle cx="47" cy="37" r="2"/>
+            </svg>
+          </div>
+          <div><span class="brain-kicker">DECISION PATH · CLICK ANY STAGE</span>
+            <h3 id="analysisBrainTitle">Analysis Brain</h3>
+            <p>How the market became this result—using recorded counts, sources, and rejection reasons.</p>
+          </div>
+        </div>
+        <span class="brain-integrity">
+          <i></i><?= $trace ? ($traceComplete ? 'Complete evidence trail' : 'Incomplete — review required') : 'Historical result — not verifiable' ?>
+        </span>
+      </div>
+
+      <?php if ($trace && $traceStages): ?>
+        <div class="brain-outcome">
+          <div class="brain-result-count">
+            <span><?= (int) ($traceOutcome['selected_count'] ?? count($p['top3'] ?? [])) ?></span>
+            <em>selected<br>of 3 maximum</em>
+          </div>
+          <div><b><?= $traceComplete ? 'The run finished completely.' : 'The run did not preserve a complete evidence trail.' ?></b>
+            <p><?= htmlspecialchars($traceOutcome['explanation'] ?? 'Open the stages below to inspect the outcome.') ?></p>
+          </div>
+          <div class="brain-decision-ring" aria-label="Final review decisions">
+            <span class="pass"><?= (int) ($traceOutcome['pass_count'] ?? 0) ?><small>PASS</small></span>
+            <span class="watch"><?= (int) ($traceOutcome['watch_count'] ?? 0) ?><small>WATCH</small></span>
+            <span class="veto"><?= (int) ($traceOutcome['veto_count'] ?? 0) ?><small>VETO</small></span>
+          </div>
+        </div>
+
+        <div class="brain-flow" aria-label="Analysis stages">
+          <?php foreach ($traceStages as $i => $stage):
+            $input = (int) ($stage['input_count'] ?? 0);
+            $output = (int) ($stage['output_count'] ?? 0);
+            $removed = (int) ($stage['removed_count'] ?? max(0, $input - $output));
+            $retention = $input > 0 ? max(3, min(100, round(100 * $output / $input))) : 0;
+            $stageJson = htmlspecialchars(json_encode($stage, JSON_UNESCAPED_SLASHES)); ?>
+            <button class="brain-stage" type="button"
+                    data-stage="<?= $stageJson ?>" data-removed="<?= $removed ?>"
+                    aria-pressed="false">
+              <span class="brain-step"><?= $i + 1 ?></span>
+              <em><?= htmlspecialchars($stage['label'] ?? 'Analysis stage') ?></em>
+              <strong><span><?= number_format($input) ?></span><i>→</i><?= number_format($output) ?></strong>
+              <span class="brain-retention"><i style="width:<?= $retention ?>%"></i></span>
+              <small><?= $removed ? number_format($removed) . ' did not advance' : 'complete at this stage' ?></small>
+            </button>
+          <?php endforeach; ?>
+        </div>
+        <div class="brain-detail" id="brainDetail" aria-live="polite">
+          <div class="brain-detail-empty">Select a stage to see its source and exact reasons.</div>
+        </div>
+      <?php else: ?>
+        <div class="brain-legacy-note">
+          <span>!</span><div><b>This saved result cannot prove why only <?= count($p['reviewed'] ?? []) ?> stocks were reviewed.</b>
+            <p>It was created before stage counts and rejection reasons were recorded. The two-stock audit may be reasonable,
+              but the old record is not enough to verify it. Run a new analysis to produce the complete evidence map—no conclusion is being invented.</p>
+          </div>
+        </div>
+      <?php endif; ?>
+    </section>
 
     <?php $reviewed = $p['reviewed'] ?? [];
           if ($reviewed):
@@ -360,6 +434,78 @@ if (audit && auditToggle) {
     audit.classList.toggle('open', opening);
     auditToggle.setAttribute('aria-expanded', opening ? 'true' : 'false');
   });
+}
+
+// ---- Analysis Brain: recorded stage counts and rejection evidence ----
+const brainStages = [...document.querySelectorAll('.brain-stage[data-stage]')];
+const brainDetail = document.getElementById('brainDetail');
+function addBrainText(parent, tag, className, value) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  node.textContent = value == null ? '' : String(value);
+  parent.appendChild(node);
+  return node;
+}
+function renderBrainStage(button) {
+  if (!brainDetail || !button) return;
+  let stage = {};
+  try { stage = JSON.parse(button.dataset.stage || '{}'); } catch (e) { return; }
+  brainStages.forEach(item => {
+    const selected = item === button;
+    item.classList.toggle('selected', selected);
+    item.setAttribute('aria-pressed', selected ? 'true' : 'false');
+  });
+  brainDetail.classList.add('switching');
+  setTimeout(() => {
+    brainDetail.replaceChildren();
+    const head = document.createElement('div');
+    head.className = 'brain-detail-head';
+    const title = document.createElement('div');
+    addBrainText(title, 'span', '', 'SELECTED STAGE');
+    addBrainText(title, 'h4', '', stage.label || 'Analysis stage');
+    head.appendChild(title);
+    addBrainText(head, 'strong', '',
+      `${Number(stage.input_count || 0).toLocaleString()} → ${Number(stage.output_count || 0).toLocaleString()}`);
+    brainDetail.appendChild(head);
+    addBrainText(brainDetail, 'p', 'brain-detail-summary', stage.summary || 'No stage summary was recorded.');
+    const source = document.createElement('div');
+    source.className = 'brain-source';
+    addBrainText(source, 'span', '', 'Evidence source');
+    addBrainText(source, 'b', '', stage.source || 'Not recorded');
+    brainDetail.appendChild(source);
+    const reasons = Array.isArray(stage.reasons) ? stage.reasons : [];
+    const reasonHead = document.createElement('div');
+    reasonHead.className = 'brain-reason-head';
+    addBrainText(reasonHead, 'b', '', reasons.length ? 'Why stocks did not advance' : 'Stage result');
+    if (reasons.length) addBrainText(reasonHead, 'small', '', 'Reason signals can overlap');
+    brainDetail.appendChild(reasonHead);
+    if (!reasons.length) {
+      addBrainText(brainDetail, 'p', 'brain-clear', 'No stocks were removed at this stage.');
+    } else {
+      const list = document.createElement('div');
+      list.className = 'brain-reasons';
+      reasons.forEach(reason => {
+        const row = document.createElement('div');
+        const label = document.createElement('div');
+        addBrainText(label, 'b', '', reason.reason || 'Did not qualify');
+        const examples = Array.isArray(reason.examples) && reason.examples.length
+          ? `Examples: ${reason.examples.join(', ')}` : '';
+        if (examples) addBrainText(label, 'small', '', examples);
+        row.appendChild(label);
+        addBrainText(row, 'strong', '', Number(reason.count || 0).toLocaleString());
+        list.appendChild(row);
+      });
+      brainDetail.appendChild(list);
+    }
+    brainDetail.classList.remove('switching');
+  }, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 150);
+}
+if (brainStages.length) {
+  brainStages.forEach(stage => stage.addEventListener('click', () => renderBrainStage(stage)));
+  const mostExplanatory = brainStages.reduce((best, stage) =>
+    Number(stage.dataset.removed || 0) > Number(best.dataset.removed || 0) ? stage : best,
+    brainStages[0]);
+  renderBrainStage(mostExplanatory);
 }
 
 if (panel) {
