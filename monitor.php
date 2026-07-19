@@ -26,7 +26,7 @@ $NAV_ACTIVE = 'auto-paper';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI Auto Trade · Paper — Trading AI Horizon</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=31">
+<link rel="stylesheet" href="assets/css/app.css?v=32">
 </head>
 <body>
 <div class="bg"></div>
@@ -63,9 +63,6 @@ $NAV_ACTIVE = 'auto-paper';
   <?php require __DIR__ . '/inc/brand_footer.php'; ?>
 </main>
 <?php require __DIR__ . '/inc/modal.php'; ?>
-<button class="scroll-top" id="scrollTop" type="button" aria-label="Scroll back to top" title="Back to top">
-  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 14 6-6 6 6-1.4 1.4-3.6-3.6V21h-2v-9.2l-3.6 3.6z"/></svg>
-</button>
 <script>
 const CSRF = '<?= $csrf ?>';
 const NAMES = <?= json_encode($names) ?>;
@@ -624,12 +621,6 @@ document.getElementById('portfolioSellAll').addEventListener('click', () => {
     }
   });
 });
-
-const scrollTopButton = document.getElementById('scrollTop');
-const renderScrollTop = () => scrollTopButton.classList.toggle('visible', window.scrollY > 420);
-scrollTopButton.addEventListener('click', () => window.scrollTo({top: 0, behavior: 'smooth'}));
-window.addEventListener('scroll', renderScrollTop, {passive: true});
-renderScrollTop();
 
 renderAll(true);
 renderBrokerMarks();

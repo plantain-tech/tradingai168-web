@@ -1,9 +1,14 @@
 <?php if (!defined('APP')) { http_response_code(403); exit('Forbidden'); }
-$NAV_ACTIVE = $NAV_ACTIVE ?? ''; ?>
+$NAV_ACTIVE = $NAV_ACTIVE ?? '';
+$SHOW_MARKET_PULSE = in_array($NAV_ACTIVE,
+    ['dash', 'auto-paper', 'auto-live', 'paper', 'live'], true); ?>
 <style>
 /* Component-critical rules live with this shared navigation markup. Hostinger
    may briefly serve a cached parent PHP page with an older app.css version;
    keeping these rules here prevents mixed-version menu layout breakage. */
+.topbar{position:fixed!important;top:0!important;left:0!important;right:0!important;width:100%!important}
+body.has-topbar{padding-top:55px!important}
+body.has-market-pulse{padding-top:139px!important}
 .tb-nav .tb-menu{position:relative; display:block; flex:0 0 auto}
 .tb-nav .tb-menu-trigger{display:flex!important; align-items:center!important;
   justify-content:center!important; gap:7px!important; width:auto!important;
@@ -125,8 +130,11 @@ $NAV_ACTIVE = $NAV_ACTIVE ?? ''; ?>
     </a>
   </div>
 </header>
+<?php if ($SHOW_MARKET_PULSE) { require __DIR__ . '/market_pulse.php'; } ?>
 <script>
 (() => {
+  document.body.classList.add('has-topbar');
+  <?php if ($SHOW_MARKET_PULSE): ?>document.body.classList.add('has-market-pulse');<?php endif; ?>
   const menus = [...document.querySelectorAll('.tb-menu')];
   const setOpen = (menu, open) => {
     menu.classList.toggle('is-open', open);

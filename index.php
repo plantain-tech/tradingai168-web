@@ -38,27 +38,12 @@ $NAV_ACTIVE = 'dash';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Trading AI Horizon — Dashboard</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=31">
+<link rel="stylesheet" href="assets/css/app.css?v=32">
 </head>
 <body>
 <div class="bg"></div>
 <?php require __DIR__ . '/inc/nav.php'; ?>
 <main class="hero wide">
-  <?php $top10 = array_slice($candDoc['data'] ?? [], 0, 10);
-        if ($top10): ?>
-  <div class="ticker" title="Yahoo Finance reference prices; refreshes without reloading this page"><div class="ticker-track">
-    <?php foreach ([0, 1] as $copy): ?>
-      <?php foreach ($top10 as $c): $t = htmlspecialchars($c['ticker']);
-            $yahoo = 'https://finance.yahoo.com/quote/' . rawurlencode($c['ticker']); ?>
-      <span class="tk"><a class="stock-link" href="<?= $yahoo ?>" target="_blank" rel="noopener noreferrer"
-          title="Open <?= $t ?> on Yahoo Finance"><b><?= $t ?></b></a>
-        <span class="tk-px" data-t="<?= $t ?>">$<?= number_format((float) $c['price'], 2) ?></span>
-        <em class="tk-chg" data-t="<?= $t ?>"></em></span>
-      <?php endforeach; ?>
-    <?php endforeach; ?>
-  </div></div>
-  <?php endif; ?>
-
   <div class="badge">MOMENTUM · <?= $activeCount ?>/<?= $maxConcurrent ?> SLOTS IN USE</div>
   <h1 class="pagetitle" style="font-size:32px">Dashboard</h1>
 
@@ -87,12 +72,18 @@ $NAV_ACTIVE = 'dash';
   </section>
   <?php endif; ?>
 
-  <?php if ($pick): $p = $pick['data']; ?>
+  <?php if ($pick): $p = $pick['data'];
+        $analysisRaw = (string) ($pick['updated_at'] ?? '');
+        $analysisMinute = 'time unavailable';
+        if ($analysisRaw !== '') {
+            try { $analysisMinute = (new DateTime($analysisRaw))->format('Y-m-d H:i'); }
+            catch (Exception $e) { /* Preserve the explicit unavailable label. */ }
+        } ?>
   <section class="card">
     <div class="camp-head">
       <h2>AI pick of the day: <span class="grad-t"><?= htmlspecialchars($p['chosen']) ?></span></h2>
-      <span class="muted" style="font-size:11px"><?= htmlspecialchars($p['source'] ?? '') ?>
-        · <?= htmlspecialchars($pick['updated_at']) ?></span>
+      <time class="analysis-time" datetime="<?= htmlspecialchars($pick['updated_at'] ?? '') ?>">
+        Latest analysis · <?= htmlspecialchars($analysisMinute) ?></time>
     </div>
     <div class="top3">
       <?php foreach (($p['top3'] ?? []) as $t): $tk = htmlspecialchars($t['ticker']);
@@ -327,35 +318,34 @@ $NAV_ACTIVE = 'dash';
 const CSRF = '<?= $csrf ?>';
 const TRANCHE = <?= (int) $settings['tranche_base'] ?>;
 
-// ---- Yahoo reference ticker: updates in place; Monitor broker marks stay separate. ----
-const tickers = [...new Set([...document.querySelectorAll('.tk-px')].map(e => e.dataset.t))];
-async function refreshQuotes() {
-  if (!tickers.length) return;
-  try {
-    const r = await fetch('api/market_quotes.php?t=' + tickers.join(','));
-    if (!r.ok) throw new Error('quote endpoint unavailable');
-    const j = await r.json();
-    for (const [t, q] of Object.entries(j.quotes || {})) {
-      document.querySelectorAll(`.tk-px[data-t="${t}"]`).forEach(e => {
-        const old = parseFloat(e.textContent.slice(1));
-        e.textContent = '$' + q.price.toFixed(2);
-        if (old && old !== q.price) {
-          e.classList.remove('flash-up', 'flash-dn'); void e.offsetWidth;
-          e.classList.add(q.price > old ? 'flash-up' : 'flash-dn');
-        }
-      });
-      document.querySelectorAll(`.tk-chg[data-t="${t}"]`).forEach(e => {
-        e.textContent = (q.chg_pct >= 0 ? '+' : '') + q.chg_pct.toFixed(2) + '%';
-        e.className = 'tk-chg ' + (q.chg_pct >= 0 ? 'ok' : 'bad');
-      });
-    }
-  } catch (e) {}
-}
-refreshQuotes();
-setInterval(refreshQuotes, 10000);
-
 // ---- pick cards: select -> analysis + score breakdown ----
 const panel = document.getElementById('aiPanel');
+const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({
+  '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;'
+})[char]);
+const scoreFieldNames = {
+  'est_current_year.eps_growth_est':'current-year earnings-per-share growth estimate',
+  'est_next_year.eps_growth_est':'next-year earnings-per-share growth estimate',
+  earnings_growth_yoy:'earnings growth year over year', earnings_surprise_avg:'average earnings surprise',
+  revenue_growth_yoy:'revenue growth year over year', gross_margin:'gross margin',
+  operating_margin:'operating margin', profit_margin:'profit margin', return_on_equity:'return on equity',
+  free_cash_flow:'free cash flow', total_cash:'total cash', total_debt:'total debt',
+  current_ratio:'current ratio', forward_pe:'forward price-to-earnings ratio',
+  price_to_book:'price-to-book ratio', analyst_target_mean:'average analyst target',
+  next_earnings_date:'next earnings date', open_attention_strength:'open-attention strength'
+};
+function humanizeScoreBasis(value) {
+  let text = String(value || '').trim();
+  text = text.replace(/Final\s+([\d.]+)\s*=\s*70% quantitative\s+([\d.]+)\s*\+\s*30% due diligence\s+([\d.]+)\.?/i,
+    'Final score $1 combines 70% quantitative evidence ($2) and 30% due-diligence evidence ($3).');
+  Object.keys(scoreFieldNames).sort((a,b) => b.length-a.length).forEach(field => {
+    text = text.replaceAll(field, scoreFieldNames[field]);
+  });
+  text = text.replace(/\b[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)+\b/gi,
+    field => field.replaceAll('.', ' ').replaceAll('_', ' '));
+  text = text.replace(/\b[a-z][a-z0-9]*_[a-z0-9_]+\b/gi, field => field.replaceAll('_', ' '));
+  return text.replace(/\s+/g, ' ').replace(/\.\s*,/g, ',').trim();
+}
 function renderPanel(card) {
   const body = document.getElementById('aiPanelBody');
   document.getElementById('aiPanelTicker').textContent = card.dataset.ticker;
@@ -407,18 +397,17 @@ function renderPanel(card) {
       : k === 'open_attention_elevated_days' ? Number(v).toFixed(0) + ' / 14'
       : v;
   const sigHtml = Object.keys(label).map(k =>
-      `<div class="sigcell"><span>${label[k]}</span><b>${fmtV(k, sig[k])}</b></div>`).join('');
+      `<div class="sigcell"><span>${esc(label[k])}</span><b>${esc(fmtV(k, sig[k]))}</b></div>`).join('');
   const basis = card.dataset.basis
-      ? `<div class="basis"><b>How the score of ${card.dataset.score} was built:</b> ` +
-        `${card.dataset.basis}</div>` : '';
+      ? `<div class="basis"><b>How the score of ${esc(card.dataset.score)} was built:</b> ` +
+        `<span>${esc(humanizeScoreBasis(card.dataset.basis))}</span></div>` : '';
   body.innerHTML =
       `<div class="siggrid">${sigHtml}</div>${basis}` + mdReport(card.dataset.analysis);
 }
 
 // Render the analyst report: "HEADING:" lines become section titles, prose flows.
 function mdReport(text) {
-  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
-  return text.split(/\n+/).map(line => {
+  return String(text || '').split(/\n+/).map(line => {
     const m = line.match(/^\s*([A-Z][A-Z &()\/0-9–-]{3,40}):\s*(.*)$/);
     if (m) {
       return `<h4 class="rpt-h">${esc(m[1])}</h4>` + (m[2] ? `<p>${esc(m[2])}</p>` : '');
