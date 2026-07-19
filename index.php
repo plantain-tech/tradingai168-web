@@ -38,7 +38,7 @@ $NAV_ACTIVE = 'dash';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Trading AI Horizon — Dashboard</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=34">
+<link rel="stylesheet" href="assets/css/app.css?v=35">
 </head>
 <body>
 <div class="bg"></div>
@@ -128,9 +128,30 @@ $NAV_ACTIVE = 'dash';
           $traceComplete = !empty($trace['integrity_complete']);
           $traceStages = is_array($trace['stages'] ?? null) ? $trace['stages'] : [];
           $traceOutcome = is_array($trace['outcome'] ?? null) ? $trace['outcome'] : []; ?>
-    <section class="analysis-brain <?= $trace ? ($traceComplete ? 'trace-complete' : 'trace-incomplete') : 'trace-legacy' ?>"
+    <style id="analysisBrainDisclosureCritical">
+      .brain-disclosure-v2 .brain-head{position:relative}
+      .brain-disclosure-v2 .brain-toggle{position:absolute;inset:-8px;z-index:2;width:calc(100% + 16px);
+        height:calc(100% + 16px);padding:0;border:0;border-radius:14px;background:transparent;cursor:pointer}
+      .brain-disclosure-v2 .brain-toggle:focus-visible{outline:2px solid var(--brand2);outline-offset:2px}
+      .brain-disclosure-v2 .brain-head-actions{display:flex;align-items:center;gap:10px;pointer-events:none}
+      .brain-disclosure-v2 .brain-chevron{width:20px;height:20px;fill:none;stroke:var(--muted);stroke-width:2;
+        stroke-linecap:round;stroke-linejoin:round;transition:transform .36s cubic-bezier(.2,.8,.2,1),stroke .2s}
+      .brain-disclosure-v2.open .brain-chevron{transform:rotate(180deg);stroke:var(--brand2)}
+      .brain-disclosure-v2 .brain-collapse{display:grid;grid-template-rows:0fr;opacity:0;visibility:hidden;
+        transition:grid-template-rows .42s cubic-bezier(.2,.8,.2,1),opacity .24s ease,visibility 0s linear .42s}
+      .brain-disclosure-v2 .brain-collapse-inner{min-height:0;overflow:hidden;transform:translateY(-8px);
+        transition:transform .38s cubic-bezier(.2,.8,.2,1)}
+      .brain-disclosure-v2.open .brain-collapse{grid-template-rows:1fr;opacity:1;visibility:visible;
+        transition:grid-template-rows .42s cubic-bezier(.2,.8,.2,1),opacity .24s ease,visibility 0s}
+      .brain-disclosure-v2.open .brain-collapse-inner{transform:none}
+      @media(prefers-reduced-motion:reduce){.brain-disclosure-v2 .brain-chevron,
+        .brain-disclosure-v2 .brain-collapse,.brain-disclosure-v2 .brain-collapse-inner{transition:none!important}}
+    </style>
+    <section class="analysis-brain brain-disclosure-v2 <?= $trace ? ($traceComplete ? 'trace-complete' : 'trace-incomplete') : 'trace-legacy' ?>"
              aria-labelledby="analysisBrainTitle">
       <div class="brain-head">
+        <button class="brain-toggle" id="analysisBrainToggle" type="button" aria-expanded="false"
+                aria-controls="analysisBrainPanel" aria-label="Expand Analysis Brain"></button>
         <div class="brain-heading">
           <div class="brain-mark" aria-hidden="true">
             <svg viewBox="0 0 64 64" role="img">
@@ -141,16 +162,20 @@ $NAV_ACTIVE = 'dash';
               <circle cx="17" cy="37" r="2"/><circle cx="47" cy="37" r="2"/>
             </svg>
           </div>
-          <div><span class="brain-kicker">DECISION PATH · CLICK ANY STAGE</span>
+          <div><span class="brain-kicker" id="analysisBrainKicker">DECISION PATH · CLICK TO EXPAND</span>
             <h3 id="analysisBrainTitle">Analysis Brain</h3>
             <p>How the market became this result—using recorded counts, sources, and rejection reasons.</p>
           </div>
         </div>
-        <span class="brain-integrity">
-          <i></i><?= $trace ? ($traceComplete ? 'Complete evidence trail' : 'Incomplete — review required') : 'Historical result — not verifiable' ?>
-        </span>
+        <div class="brain-head-actions">
+          <span class="brain-integrity">
+            <i></i><?= $trace ? ($traceComplete ? 'Complete evidence trail' : 'Incomplete — review required') : 'Historical result — not verifiable' ?>
+          </span>
+          <svg class="brain-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
+        </div>
       </div>
 
+      <div class="brain-collapse" id="analysisBrainPanel" aria-hidden="true" inert><div class="brain-collapse-inner">
       <?php if ($trace && $traceStages): ?>
         <div class="brain-outcome">
           <div class="brain-result-count">
@@ -196,6 +221,7 @@ $NAV_ACTIVE = 'dash';
           </div>
         </div>
       <?php endif; ?>
+      </div></div>
     </section>
 
     <?php $reviewed = $p['reviewed'] ?? [];
@@ -422,6 +448,24 @@ if (audit && auditToggle) {
     const opening = !audit.classList.contains('open');
     audit.classList.toggle('open', opening);
     auditToggle.setAttribute('aria-expanded', opening ? 'true' : 'false');
+  });
+}
+
+const analysisBrain = document.querySelector('.analysis-brain.brain-disclosure-v2');
+const analysisBrainToggle = document.getElementById('analysisBrainToggle');
+const analysisBrainPanel = document.getElementById('analysisBrainPanel');
+const analysisBrainKicker = document.getElementById('analysisBrainKicker');
+if (analysisBrain && analysisBrainToggle && analysisBrainPanel) {
+  analysisBrainToggle.addEventListener('click', () => {
+    const opening = !analysisBrain.classList.contains('open');
+    analysisBrain.classList.toggle('open', opening);
+    analysisBrainToggle.setAttribute('aria-expanded', opening ? 'true' : 'false');
+    analysisBrainToggle.setAttribute('aria-label', `${opening ? 'Collapse' : 'Expand'} Analysis Brain`);
+    analysisBrainPanel.setAttribute('aria-hidden', opening ? 'false' : 'true');
+    analysisBrainPanel.inert = !opening;
+    if (analysisBrainKicker) {
+      analysisBrainKicker.textContent = `DECISION PATH · ${opening ? 'CLICK ANY STAGE' : 'CLICK TO EXPAND'}`;
+    }
   });
 }
 

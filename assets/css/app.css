@@ -634,6 +634,7 @@ body.has-market-pulse{padding-top:55px}
 .brain-head,.brain-heading,.brain-outcome,.brain-detail-head,.brain-source,.brain-reason-head{
   display:flex; align-items:center}
 .brain-head{position:relative; justify-content:space-between; gap:18px}
+.brain-head{transition:padding .28s ease}.analysis-brain.open .brain-head{padding-bottom:1px}
 .brain-heading{gap:13px; min-width:0}
 .brain-heading h3{margin:2px 0 3px; color:var(--ink); font-size:18px}
 .brain-heading p{margin:0; max-width:620px; color:var(--muted); font-size:11px; line-height:1.5}
@@ -713,12 +714,12 @@ body.has-market-pulse{padding-top:55px}
 .brain-legacy-note b{font-size:11px;color:#fde68a}.brain-legacy-note p{margin:4px 0 0;color:var(--muted);font-size:10px;line-height:1.55}
 @keyframes brain-breathe{50%{transform:translateY(-2px);box-shadow:0 0 30px rgba(34,211,238,.17)}}
 @keyframes brain-circuit{to{stroke-dashoffset:-26}}
-@media(max-width:820px){.brain-head{align-items:flex-start;flex-direction:column}.brain-integrity{margin-left:65px}
+@media(max-width:820px){.brain-head{align-items:flex-start;flex-direction:column}.brain-head-actions{width:100%;padding-left:65px}.brain-integrity{margin-left:0}
   .brain-flow{grid-template-columns:repeat(2,minmax(0,1fr))}.brain-stage:not(:nth-child(4n)):after{display:none}
   .brain-stage:not(:nth-child(2n)):after{display:block}.brain-outcome{align-items:flex-start;flex-wrap:wrap}
   .brain-decision-ring{width:100%;padding-left:66px}.brain-reasons{grid-template-columns:1fr}}
 @media(max-width:520px){.analysis-brain{padding:14px}.brain-mark{flex-basis:44px;width:44px;height:44px}
-  .brain-integrity{margin-left:0}.brain-outcome{padding:11px}.brain-result-count{border:0;padding:0}
+  .brain-head-actions{padding-left:0}.brain-integrity{margin-left:0}.brain-outcome{padding:11px}.brain-result-count{border:0;padding:0}
   .brain-decision-ring{padding-left:0}.brain-decision-ring>span{flex:1}.brain-flow{grid-template-columns:1fr}
   .brain-stage{min-height:112px}.brain-stage:after{display:none!important}.brain-heading p{font-size:10px}}
 @media(prefers-reduced-motion:reduce){.brain-mark,.brain-mark .brain-circuit{animation:none!important}
