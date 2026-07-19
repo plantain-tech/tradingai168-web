@@ -19,7 +19,11 @@ foreach ($campaigns as $k => $c) {
 $queued = [];
 foreach (commands_pending() as $cmd) { $queued[$cmd['ticker']][$cmd['action']] = true; }
 $names = [];
-foreach (($candDoc['data'] ?? []) as $c) { $names[$c['ticker']] = $c['name'] ?? $c['ticker']; }
+$candidatePrices = [];
+foreach (($candDoc['data'] ?? []) as $c) {
+    $names[$c['ticker']] = $c['name'] ?? $c['ticker'];
+    $candidatePrices[$c['ticker']] = $c['price'] ?? null;
+}
 $maxConcurrent = (int) ($settings['max_concurrent'] ?? 3);
 $activeCount = count($running) + count(array_filter($queued,
     fn($q) => !empty($q['APPROVE_BUY'])));
@@ -38,7 +42,7 @@ $NAV_ACTIVE = 'dash';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Trading AI Horizon — Dashboard</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=35">
+<link rel="stylesheet" href="assets/css/app.css?v=36">
 </head>
 <body>
 <div class="bg"></div>
@@ -116,9 +120,10 @@ $NAV_ACTIVE = 'dash';
             <button class="btn buybtn locked" disabled>
               All <?= $maxConcurrent ?> slots in use — sell a position to free one</button>
           <?php else: ?>
-            <button class="btn buybtn buy-click" data-ticker="<?= $tk ?>"
-                    data-name="<?= htmlspecialchars($names[$tk] ?? $tk) ?>">
-              One-click BUY <?= $tk ?></button>
+            <button class="btn buybtn buy-choice" type="button" data-ticker="<?= $tk ?>"
+                    data-name="<?= htmlspecialchars($names[$tk] ?? $tk) ?>"
+                    data-price="<?= htmlspecialchars((string) ($sig['price'] ?? $candidatePrices[$tk] ?? '')) ?>">
+              Choose Paper or Live</button>
           <?php endif; ?>
         </div>
       <?php endforeach; ?>
@@ -225,17 +230,20 @@ $NAV_ACTIVE = 'dash';
     </section>
 
     <?php $reviewed = $p['reviewed'] ?? [];
+          $selectedTickers = array_fill_keys(array_column($p['top3'] ?? [], 'ticker'), true);
           if ($reviewed):
             $passCount = count(array_filter($reviewed, fn($r) => ($r['decision'] ?? '') === 'PASS'));
             $watchCount = count(array_filter($reviewed, fn($r) => ($r['decision'] ?? '') === 'WATCH'));
-            $vetoCount = count(array_filter($reviewed, fn($r) => ($r['decision'] ?? '') === 'VETO')); ?>
+            $vetoCount = count(array_filter($reviewed, fn($r) => ($r['decision'] ?? '') === 'VETO'));
+            $qwenTokens = (int) ($p['challenger']['usage']['total_tokens'] ?? 0); ?>
       <section class="dd-audit open" id="ddAudit">
         <button class="dd-audit-toggle" id="ddAuditToggle" type="button"
                 aria-expanded="true" aria-controls="ddAuditPanel">
           <span><b>Due-diligence audit</b> · <?= count($reviewed) ?> reviewed</span>
           <span class="dd-audit-counts"><i class="dd-pass"><?= $passCount ?> PASS</i>
             <i class="dd-watch"><?= $watchCount ?> WATCH</i>
-            <i class="dd-veto"><?= $vetoCount ?> VETO</i></span>
+            <i class="dd-veto"><?= $vetoCount ?> VETO</i>
+            <?php if ($qwenTokens > 0): ?><i class="dd-qwen-usage">QWEN <?= number_format($qwenTokens) ?> TOKENS</i><?php endif; ?></span>
           <svg class="dd-audit-chev" viewBox="0 0 24 24" width="18" height="18"
                aria-hidden="true"><path d="M7 10l5 5 5-5" fill="none"
                stroke="currentColor" stroke-width="2" stroke-linecap="round"
@@ -244,9 +252,15 @@ $NAV_ACTIVE = 'dash';
         <div class="dd-audit-wrap" id="ddAuditPanel"><div class="dd-audit-body">
           <div class="dd-review-grid">
           <?php foreach ($reviewed as $r):
+              $reviewTicker = strtoupper((string) ($r['ticker'] ?? '?'));
+              $reviewTickerHtml = htmlspecialchars($reviewTicker);
               $decision = strtoupper($r['decision'] ?? 'WATCH');
               $qwenVerdict = strtoupper($r['challenger']['effective_verdict'] ?? 'UNAVAILABLE');
               $qwenReason = $r['challenger']['reason'] ?? '';
+              $qwenDisplayReason = $qwenReason;
+              if ($qwenVerdict === 'FAILED' && preg_match('/HTTP 400$/', $qwenReason)) {
+                  $qwenDisplayReason .= ' · Detailed Groq message was not retained for this historical result.';
+              }
               $reviewSignals = [
                 'decision' => $decision,
                 'quant_score' => $r['quant_score'] ?? null,
@@ -259,14 +273,14 @@ $NAV_ACTIVE = 'dash';
                 'challenger_verdict' => $qwenVerdict,
                 'challenger_reason' => $qwenReason,
               ]; ?>
-            <button class="dd-review-row analysis-source selectable" type="button"
-                    data-ticker="<?= htmlspecialchars($r['ticker'] ?? '?') ?>"
+            <div class="dd-review-row analysis-source selectable" role="button" tabindex="0"
+                    data-ticker="<?= $reviewTickerHtml ?>"
                     data-analysis="<?= htmlspecialchars($r['analysis'] ?? $r['reason'] ?? '') ?>"
                     data-basis="<?= htmlspecialchars($r['score_basis'] ?? '') ?>"
                     data-score="<?= htmlspecialchars($r['final_score'] ?? 0) ?>"
                     data-signals="<?= htmlspecialchars(json_encode($reviewSignals)) ?>"
-                    aria-label="View full AI analysis for <?= htmlspecialchars($r['ticker'] ?? 'stock') ?>">
-              <div><b><?= htmlspecialchars($r['ticker'] ?? '?') ?></b>
+                    aria-label="View full AI analysis for <?= $reviewTickerHtml ?>">
+              <div><b><?= $reviewTickerHtml ?></b>
                 <span class="dd-status dd-<?= strtolower(htmlspecialchars($decision)) ?>"><?= htmlspecialchars($decision) ?></span></div>
               <div class="dd-review-scores">
                 <span>Quant <b><?= number_format((float) ($r['quant_score'] ?? 0), 1) ?></b></span>
@@ -279,10 +293,29 @@ $NAV_ACTIVE = 'dash';
               <p><?= htmlspecialchars($r['reason'] ?? '') ?></p>
               <?php if (in_array($qwenVerdict, ['FAILED', 'UNAVAILABLE'], true) && $qwenReason): ?>
                 <small class="qwen-note">Qwen <?= strtolower($qwenVerdict) ?>:
-                  <?= htmlspecialchars($qwenReason) ?></small>
+                  <?= htmlspecialchars($qwenDisplayReason) ?></small>
               <?php endif; ?>
-              <span class="dd-review-action">View full analysis <b>↓</b></span>
-            </button>
+              <div class="dd-review-footer">
+                <span class="dd-review-action">View full analysis <b>↓</b></span>
+                <?php if (!empty($running[$reviewTicker])): ?>
+                  <button class="dd-candidate-buy locked" type="button" disabled>Auto-trading active</button>
+                <?php elseif (!empty($queued[$reviewTicker]['APPROVE_BUY'])): ?>
+                  <button class="dd-candidate-buy locked" type="button" disabled>Paper order queued</button>
+                <?php elseif ($decision !== 'PASS' || empty($selectedTickers[$reviewTicker])): ?>
+                  <button class="dd-candidate-buy locked" type="button" disabled
+                          title="Only final evidence-supported selections can start a campaign">
+                    <?= htmlspecialchars($decision) ?> · No buy</button>
+                <?php elseif ($slotsFull): ?>
+                  <button class="dd-candidate-buy locked" type="button" disabled>Campaign slots full</button>
+                <?php else: ?>
+                  <button class="dd-candidate-buy buy-choice" type="button"
+                          data-ticker="<?= $reviewTickerHtml ?>"
+                          data-name="<?= htmlspecialchars($names[$reviewTicker] ?? $reviewTicker) ?>"
+                          data-price="<?= htmlspecialchars((string) ($candidatePrices[$reviewTicker] ?? '')) ?>">
+                    Choose buy mode</button>
+                <?php endif; ?>
+              </div>
+            </div>
           <?php endforeach; ?>
           </div>
         </div></div>
@@ -304,11 +337,12 @@ $NAV_ACTIVE = 'dash';
     <p class="muted small">Click a card to read its analysis and score breakdown.
       The result may contain fewer than three stocks when sector, correlation, earnings,
       liquidity, or risk requirements leave fewer legitimate candidates.
-      A BUY creates the campaign behind the scenes — once the order is placed on
+      A Paper Buy creates the campaign behind the scenes — once the simulated order is placed on
       Moomoo, auto-trading activates and the position appears on
       <a href="monitor.php" style="color:var(--brand2)">Monitor</a>. Budgets:
       $<?= number_format($settings['budget_usd'] / max(1, $maxConcurrent), 0) ?>/stock,
-      $<?= number_format($settings['budget_usd'], 0) ?> global. Nothing trades without your click.</p>
+      $<?= number_format($settings['budget_usd'], 0) ?> global. Nothing trades without your click.
+      Live production remains locked until its separate real-money safeguards are completed.</p>
   </section>
   <?php else: ?>
     <section class="card"><h2>No AI pick yet</h2>
@@ -337,6 +371,49 @@ $NAV_ACTIVE = 'dash';
     <p class="muted small" id="anHint">Screening the full universe, verifying company identity and
       14-day Wikimedia attention, liquidity, earnings and risk, then running the structured AI audit — usually 3–8 minutes.</p>
   </div>
+</div>
+
+<style id="purchaseModeCritical">
+  .purchase-mode-v2{position:fixed;inset:0;z-index:80;display:grid;place-items:center;padding:20px;
+    background:rgba(4,7,16,.78);backdrop-filter:blur(10px);opacity:0;visibility:hidden;
+    pointer-events:none;transition:opacity .28s ease,visibility 0s linear .28s}
+  .purchase-mode-v2.open{opacity:1;visibility:visible;pointer-events:auto;transition:opacity .28s ease,visibility 0s}
+  .purchase-mode-v2 .purchase-dialog{width:min(94vw,620px);max-height:min(90vh,760px);overflow:auto;
+    transform:translateY(18px) scale(.97);transition:transform .34s cubic-bezier(.2,.85,.25,1)}
+  .purchase-mode-v2.open .purchase-dialog{transform:none}
+  @media(prefers-reduced-motion:reduce){.purchase-mode-v2,.purchase-mode-v2 .purchase-dialog{transition:none!important}}
+</style>
+<div class="purchase-mode-v2" id="purchaseModeBack" aria-hidden="true">
+  <section class="purchase-dialog" role="dialog" aria-modal="true"
+           aria-labelledby="purchaseModeTitle" aria-describedby="purchaseModeIntro">
+    <button class="purchase-close" id="purchaseModeClose" type="button" aria-label="Close purchase decision">×</button>
+    <div class="purchase-heading">
+      <span class="purchase-mark" aria-hidden="true">↗</span>
+      <div><span class="purchase-kicker">HUMAN APPROVAL REQUIRED</span>
+        <h3 id="purchaseModeTitle">Choose trading account</h3>
+        <p id="purchaseModeIntro">No order is sent until you choose an account and confirm.</p></div>
+    </div>
+    <div class="purchase-summary" id="purchaseModeSummary"></div>
+    <div class="purchase-accounts" role="group" aria-label="Trading account">
+      <button class="purchase-account selected" id="purchasePaperChoice" type="button"
+              aria-pressed="true" data-mode="paper">
+        <span class="purchase-account-icon" aria-hidden="true">▣</span>
+        <span><b>Paper Trading</b><small>Moomoo simulated account · current engine</small></span>
+        <em>READY</em>
+      </button>
+      <button class="purchase-account live" id="purchaseLiveChoice" type="button"
+              aria-pressed="false" data-mode="live">
+        <span class="purchase-account-icon" aria-hidden="true">◆</span>
+        <span><b>Live Production</b><small>Real money · isolated production controls required</small></span>
+        <em>LOCKED</em>
+      </button>
+    </div>
+    <div class="purchase-notice paper" id="purchaseModeNotice" aria-live="polite"></div>
+    <div class="purchase-actions">
+      <button class="btn ghost" id="purchaseModeCancel" type="button">Do not buy</button>
+      <button class="btn" id="purchaseModeConfirm" type="button">Queue Paper Buy</button>
+    </div>
+  </section>
 </div>
 
 <?php require __DIR__ . '/inc/modal.php'; ?>
@@ -583,28 +660,101 @@ if (panel) {
   if (chosen) renderPanel(chosen);
 }
 
-// ---- one-click BUY ----
-document.querySelectorAll('.buy-click').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const t = btn.dataset.ticker;
-    const px = document.querySelector(`.tk-px[data-t="${t}"]`)?.textContent || '—';
-    tradeModal({
-      title: `Buy ${t}?`, icon: '🚀',
-      rows: [['Company', btn.dataset.name], ['Ticker', t],
-             ['First tranche', TRANCHE + ' shares · bounded limit ladder'], ['Last price', px],
-             ['Then', 'DCA checkpoints ask KEEP BUYING or HOLD']],
-      note: 'On confirm: a campaign is created and the order goes to Moomoo. Once ' +
-            'placed, tracking is ACTIVE. Every later DCA date requires a fresh KEEP BUYING ' +
-            'decision on Auto Trade → Paper; HOLD places no order. Momentum gates, loss ' +
-            'alerts, spread/slippage collars and budget caps stay enforced.',
-      okLabel: 'Confirm BUY',
-      onConfirm: async () => {
-        if (await queueCommand('APPROVE_BUY', t, CSRF)) {
-          lockButton(btn, 'Order queued — activating on Monitor shortly');
-        } else { alert('Could not queue — try again.'); }
-      }
-    });
+// ---- candidate purchase decision: Paper is operational; Live stays fail-closed ----
+const purchaseBack = document.getElementById('purchaseModeBack');
+const purchaseDialog = purchaseBack?.querySelector('.purchase-dialog');
+const purchaseSummary = document.getElementById('purchaseModeSummary');
+const purchaseNotice = document.getElementById('purchaseModeNotice');
+const purchaseConfirm = document.getElementById('purchaseModeConfirm');
+const purchasePaper = document.getElementById('purchasePaperChoice');
+const purchaseLive = document.getElementById('purchaseLiveChoice');
+let purchaseState = {ticker:'', name:'', price:'', mode:'paper', trigger:null};
+
+function selectPurchaseMode(mode) {
+  purchaseState.mode = mode;
+  [purchasePaper, purchaseLive].forEach(choice => {
+    const selected = choice.dataset.mode === mode;
+    choice.classList.toggle('selected', selected);
+    choice.setAttribute('aria-pressed', selected ? 'true' : 'false');
   });
+  const live = mode === 'live';
+  purchaseNotice.className = `purchase-notice ${live ? 'live' : 'paper'}`;
+  purchaseNotice.textContent = live
+    ? 'Live production is intentionally locked. This platform has no isolated live campaign ledger or authenticated live-order queue yet, so no real-money order can be sent from this modal.'
+    : `Paper confirmation queues ${purchaseState.ticker} for the running Moomoo simulated-account engine. The engine rechecks market hours, campaign slots, budget, correlation, spread, and current broker prices before ordering.`;
+  purchaseConfirm.textContent = live ? 'Open Live Preparation' : 'Queue Paper Buy';
+  purchaseConfirm.classList.toggle('danger', live);
+}
+
+function closePurchaseMode() {
+  if (!purchaseBack) return;
+  purchaseBack.classList.remove('open');
+  purchaseBack.setAttribute('aria-hidden', 'true');
+  setTimeout(() => purchaseState.trigger?.focus(), 0);
+}
+
+function openPurchaseMode(btn) {
+  if (!purchaseBack) return;
+  purchaseState = {ticker:btn.dataset.ticker || '', name:btn.dataset.name || '',
+                   price:btn.dataset.price || '', mode:'paper', trigger:btn};
+  document.getElementById('purchaseModeTitle').textContent = `Buy ${purchaseState.ticker}?`;
+  const shownPrice = purchaseState.price && Number.isFinite(Number(purchaseState.price))
+    ? `$${Number(purchaseState.price).toFixed(2)}` : 'Verified again at order time';
+  purchaseSummary.innerHTML = [
+    ['Company', purchaseState.name || purchaseState.ticker],
+    ['First tranche', `${TRANCHE} shares`],
+    ['Analysis price', shownPrice]
+  ].map(([label,value]) => `<span><small>${esc(label)}</small><b>${esc(value)}</b></span>`).join('');
+  selectPurchaseMode('paper');
+  purchaseBack.classList.add('open');
+  purchaseBack.setAttribute('aria-hidden', 'false');
+  setTimeout(() => purchasePaper.focus(), 40);
+}
+
+function lockCandidatePurchase(ticker) {
+  document.querySelectorAll('.buy-choice').forEach(btn => {
+    if (btn.dataset.ticker !== ticker) return;
+    btn.disabled = true;
+    btn.classList.add('locked');
+    btn.textContent = 'Paper order queued';
+  });
+}
+
+document.querySelectorAll('.buy-choice').forEach(btn => {
+  btn.addEventListener('click', event => {
+    event.stopPropagation();
+    openPurchaseMode(btn);
+  });
+});
+purchasePaper?.addEventListener('click', () => selectPurchaseMode('paper'));
+purchaseLive?.addEventListener('click', () => selectPurchaseMode('live'));
+document.getElementById('purchaseModeClose')?.addEventListener('click', closePurchaseMode);
+document.getElementById('purchaseModeCancel')?.addEventListener('click', closePurchaseMode);
+purchaseBack?.addEventListener('click', event => {
+  if (event.target === purchaseBack) closePurchaseMode();
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && purchaseBack?.classList.contains('open')) closePurchaseMode();
+});
+purchaseConfirm?.addEventListener('click', async () => {
+  if (purchaseState.mode === 'live') {
+    location.href = 'auto_trade_live.php';
+    return;
+  }
+  purchaseConfirm.disabled = true;
+  purchaseConfirm.textContent = 'Queuing safely…';
+  try {
+    if (await queueCommand('APPROVE_BUY', purchaseState.ticker, CSRF)) {
+      lockCandidatePurchase(purchaseState.ticker);
+      closePurchaseMode();
+    } else {
+      purchaseNotice.className = 'purchase-notice live';
+      purchaseNotice.textContent = 'The authenticated Paper approval could not be queued. No order was sent. Please try again.';
+    }
+  } finally {
+    purchaseConfirm.disabled = false;
+    if (purchaseBack?.classList.contains('open')) selectPurchaseMode('paper');
+  }
 });
 
 // ---- Analyze overlay ----
