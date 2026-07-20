@@ -54,6 +54,26 @@ $latestNoPick = $latestTerminalOutcome && ($analysisState === 'completed_no_pick
     || ($errorMatchesStatus && analysis_is_no_pick($anErr['data'] ?? [])));
 $showErr = $latestTerminalOutcome;
 $pickHistorical = (bool) ($pick && $latestTerminalOutcome);
+$candidateRows = array_values(array_filter(
+    is_array($candDoc['data'] ?? null) ? $candDoc['data'] : [],
+    fn($row) => is_array($row) && !empty($row['ticker'])
+));
+usort($candidateRows, fn($a, $b) =>
+    ((float) ($b['quant_score'] ?? 0) <=> (float) ($a['quant_score'] ?? 0))
+    ?: strcmp((string) ($a['ticker'] ?? ''), (string) ($b['ticker'] ?? '')));
+$candidateRunId = (string) ($candidateRows[0]['run_id'] ?? '');
+$candidateCurrent = !$statusRunId || ($candidateRunId && $candidateRunId === $statusRunId);
+if (!$candidateCurrent) { $candidateRows = []; }
+$selectedTickersForWatchlist = array_fill_keys(
+    array_column($pick['data']['top3'] ?? [], 'ticker'), true);
+$reviewedForWatchlist = [];
+$reviewSource = ($errorMatchesStatus && is_array($anErr['data']['details']['reviewed'] ?? null))
+    ? $anErr['data']['details']['reviewed']
+    : ($pick['data']['reviewed'] ?? []);
+foreach ($reviewSource as $reviewRow) {
+    $reviewTicker = strtoupper((string) ($reviewRow['ticker'] ?? ''));
+    if ($reviewTicker !== '') { $reviewedForWatchlist[$reviewTicker] = $reviewRow; }
+}
 $NAV_ACTIVE = 'dash';
 ?>
 <!doctype html>
@@ -62,7 +82,7 @@ $NAV_ACTIVE = 'dash';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Trading AI Horizon — Dashboard</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=37">
+<link rel="stylesheet" href="assets/css/app.css?v=38">
 </head>
 <body>
 <div class="bg"></div>
@@ -389,6 +409,66 @@ $NAV_ACTIVE = 'dash';
     <section class="card"><h2>No AI pick yet</h2>
       <p class="muted">Press <b>Analyze &amp; Pick Up to 3</b> above (engine service must
       be running: <code>python -X utf8 runner/service.py</code>).</p></section>
+  <?php endif; ?>
+
+  <?php if ($candidateRows):
+      $leadingPotentials = array_slice($candidateRows, 0, 3);
+      $additionalPotentials = array_slice($candidateRows, 3); ?>
+    <section class="card momentum-watchlist" aria-labelledby="momentumWatchlistTitle">
+      <div class="momentum-watchlist-head">
+        <div><span class="momentum-watchlist-kicker">DETERMINISTIC MARKET RANKING</span>
+          <h2 id="momentumWatchlistTitle">Quantitative momentum leaders</h2>
+          <p>Ordered by quantitative score. These names passed the market-data screen;
+            only cards explicitly marked <b>AI-qualified</b> are approved selections.</p></div>
+        <span class="momentum-watchlist-count"><?= count($candidateRows) ?> researched</span>
+      </div>
+      <div class="momentum-leaders">
+        <?php foreach ($leadingPotentials as $candidate):
+            $ticker = strtoupper((string) ($candidate['ticker'] ?? ''));
+            $signals = is_array($candidate['signals'] ?? null) ? $candidate['signals'] : [];
+            $isSelected = !empty($selectedTickersForWatchlist[$ticker]);
+            $reviewDecision = strtoupper((string) ($reviewedForWatchlist[$ticker]['final_decision']
+                ?? $reviewedForWatchlist[$ticker]['decision'] ?? ''));
+            $tierText = $isSelected ? 'AI-qualified'
+                : (in_array($reviewDecision, ['WATCH', 'VETO'], true)
+                    ? 'AI ' . $reviewDecision . ' · research only'
+                    : 'Potential · research only'); ?>
+          <article class="momentum-potential <?= $isSelected ? 'qualified' : '' ?>">
+            <div class="momentum-potential-top"><span class="momentum-rank">#<?= (int) ($candidate['quant_rank'] ?? 0) ?></span>
+              <span class="momentum-tier <?= $isSelected ? 'qualified' : '' ?>">
+                <?= htmlspecialchars($tierText) ?></span></div>
+            <div class="momentum-potential-company"><div><b><?= htmlspecialchars($ticker) ?></b>
+              <small><?= htmlspecialchars((string) ($candidate['name'] ?? $ticker)) ?></small></div>
+              <strong><?= number_format((float) ($candidate['quant_score'] ?? 0), 1) ?><em>Quant score</em></strong></div>
+            <div class="momentum-potential-metrics">
+              <span><small>Price</small><b>$<?= number_format((float) ($candidate['price'] ?? 0), 2) ?></b></span>
+              <span><small>3-month momentum</small><b><?= number_format(100 * (float) ($signals['momentum_3_1'] ?? 0), 1) ?>%</b></span>
+              <span><small>Relative to S&amp;P 500</small><b><?= number_format(100 * (float) ($signals['relative_spy'] ?? 0), 1) ?>%</b></span>
+              <span><small>Recent volume</small><b><?= number_format(100 * (float) ($signals['recent_volume_ratio'] ?? 0), 0) ?>%</b></span>
+            </div>
+          </article>
+        <?php endforeach; ?>
+      </div>
+      <?php if ($additionalPotentials): ?>
+        <details class="momentum-more">
+          <summary>Show <?= count($additionalPotentials) ?> additional potential momentum
+            <?= count($additionalPotentials) === 1 ? 'stock' : 'stocks' ?></summary>
+          <div class="momentum-more-list">
+            <?php foreach ($additionalPotentials as $candidate): $signals = $candidate['signals'] ?? []; ?>
+              <div><span><b>#<?= (int) ($candidate['quant_rank'] ?? 0) ?> ·
+                    <?= htmlspecialchars((string) ($candidate['ticker'] ?? '')) ?></b>
+                  <small><?= htmlspecialchars((string) ($candidate['name'] ?? '')) ?></small></span>
+                <strong><?= number_format((float) ($candidate['quant_score'] ?? 0), 1) ?></strong>
+                <em><?= number_format(100 * (float) ($signals['momentum_3_1'] ?? 0), 1) ?>% three-month ·
+                  <?= number_format(100 * (float) ($signals['relative_spy'] ?? 0), 1) ?>% vs S&amp;P 500</em></div>
+            <?php endforeach; ?>
+          </div>
+        </details>
+      <?php endif; ?>
+      <p class="momentum-watchlist-note"><i></i><span><b>Research list, not a forced recommendation.</b>
+        A potential remains non-buyable until evidence review awards PASS and the final sector,
+        correlation, account-budget, Moomoo price, spread, and market-hours checks succeed.</span></p>
+    </section>
   <?php endif; ?>
 
   <footer class="foot">Trading AI Horizon · momentum engine · you approve, it executes</footer>
