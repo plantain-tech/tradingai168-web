@@ -1024,7 +1024,12 @@ if (anBtn) anBtn.addEventListener('click', async () => {
     stateEl.textContent = String(status.state || 'queued').replaceAll('_', ' ').toUpperCase();
     const floors = {queued:5,starting:12,running:22,completed:100,completed_no_pick:100,failed:0};
     let progress = floors[status.state] ?? 5;
-    if (status.state === 'running') progress = Math.min(94, 22 + 72 * (1 - Math.exp(-sec / 180)));
+    if (status.state === 'running') {
+      const reported = Number(status.progress_percent);
+      progress = Number.isFinite(reported) && reported > 0
+        ? Math.min(98, reported)
+        : Math.min(94, 22 + 72 * (1 - Math.exp(-sec / 180)));
+    }
     fill.style.width = progress + '%'; pct.textContent = status.state === 'failed' ? '' : Math.round(progress) + '%';
     stage.textContent = status.message || 'Waiting for engine status…';
     if (['queued','starting','running'].includes(status.state) && status.engine && !status.engine.online) {

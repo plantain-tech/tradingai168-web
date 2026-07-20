@@ -61,6 +61,12 @@ echo json_encode([
     'audit' => is_array($u['audit'] ?? null) ? $u['audit'] : null,
     'elapsed_seconds' => $elapsed,
     'duration_seconds' => $u['duration_seconds'] ?? null,
+    'phase' => $u['phase'] ?? null,
+    'progress_percent' => $u['progress_percent'] ?? null,
+    'progress_current' => $u['progress_current'] ?? null,
+    'progress_total' => $u['progress_total'] ?? null,
+    'ticker' => $u['ticker'] ?? null,
+    'provider_state' => $u['provider_state'] ?? null,
     'engine' => [
         'online' => $engineOnline,
         'status' => $health['status'] ?? 'unknown',

@@ -51,7 +51,9 @@ foreach ($docs as $k => $v) {
                 }
                 $run['state'] = $incomingState;
                 $run['message'] = substr((string) ($v['message'] ?? ''), 0, 500);
-                foreach (['started_at', 'at', 'duration_seconds', 'chosen'] as $field) {
+                foreach (['started_at', 'at', 'duration_seconds', 'chosen',
+                          'phase', 'progress_percent', 'progress_current',
+                          'progress_total', 'ticker', 'provider_state'] as $field) {
                     if (array_key_exists($field, $v)) { $run[$field] = $v[$field]; }
                 }
                 if (is_array($v['audit'] ?? null)) {
