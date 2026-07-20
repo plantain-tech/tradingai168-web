@@ -29,11 +29,31 @@ $activeCount = count($running) + count(array_filter($queued,
     fn($q) => !empty($q['APPROVE_BUY'])));
 $slotsFull = $activeCount >= $maxConcurrent;
 $analysisStatus = doc_get('analysis_status');
-$analysisRunning = in_array($analysisStatus['data']['state'] ?? '', ['starting', 'running'], true);
+$engineHealth = doc_get('engine_health');
+$engineHealthData = $engineHealth['data'] ?? [];
+$engineLastSeen = strtotime((string) ($engineHealthData['last_seen_at'] ?? '')) ?: 0;
+$engineStaleAfter = max(30, (int) ($engineHealthData['stale_after_seconds'] ?? 95));
+$engineOnline = (($engineHealthData['status'] ?? '') === 'running' && $engineLastSeen
+                 && time() - $engineLastSeen <= $engineStaleAfter);
+$analysisState = strtolower((string) ($analysisStatus['data']['state'] ?? ''));
+$analysisStatusAge = max(0, time() - (int) ($analysisStatus['updated_epoch'] ?? 0));
+$analysisRunning = in_array($analysisState, ['starting', 'running'], true)
+    && $analysisStatusAge <= 35 * 60 && $engineOnline;
 $analysisQueued = !empty($queued['ALL']['RUN_ANALYSIS']) || $analysisRunning;
-// Show an AI-failure card only if the error is NEWER than the last good pick.
 $anErr = doc_get('analysis_error');
-$showErr = $anErr && (!$pick || ($anErr['updated_at'] > $pick['updated_at']));
+$statusRunId = (string) ($analysisStatus['data']['run_id'] ?? '');
+$pickRunId = (string) ($pick['data']['run_id'] ?? '');
+$errorRunId = (string) ($anErr['data']['run_id'] ?? '');
+$statusAfterPick = $analysisStatus && (!$pick
+    || ($statusRunId && $pickRunId && $statusRunId !== $pickRunId)
+    || (($analysisStatus['updated_epoch'] ?? 0) > ($pick['updated_epoch'] ?? 0)));
+$latestTerminalOutcome = in_array($analysisState, ['failed', 'completed_no_pick'], true)
+    && $statusAfterPick;
+$errorMatchesStatus = $anErr && (!$statusRunId || !$errorRunId || $statusRunId === $errorRunId);
+$latestNoPick = $latestTerminalOutcome && ($analysisState === 'completed_no_pick'
+    || ($errorMatchesStatus && analysis_is_no_pick($anErr['data'] ?? [])));
+$showErr = $latestTerminalOutcome;
+$pickHistorical = (bool) ($pick && $latestTerminalOutcome);
 $NAV_ACTIVE = 'dash';
 ?>
 <!doctype html>
@@ -42,7 +62,7 @@ $NAV_ACTIVE = 'dash';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Trading AI Horizon — Dashboard</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=36">
+<link rel="stylesheet" href="assets/css/app.css?v=37">
 </head>
 <body>
 <div class="bg"></div>
@@ -62,12 +82,21 @@ $NAV_ACTIVE = 'dash';
     </button>
   <?php endif; ?>
 
-  <?php if ($showErr): $ae = $anErr['data']; ?>
-  <section class="card" style="border-color:rgba(248,113,113,.4)">
-    <h2 class="bad">AI analysis failed — no pick was produced (no silent fallback)</h2>
+  <?php if ($showErr): $ae = $errorMatchesStatus ? $anErr['data'] : [
+      'stage' => 'analysis worker',
+      'reason' => ($analysisStatus['data']['message'] ?? 'The run ended without a detailed diagnostic.'),
+      'hints' => ['Paper monitoring remained independent. Review the PC worker log before retrying.'],
+  ]; ?>
+  <section class="card analysis-outcome-card <?= $latestNoPick ? 'no-pick' : 'failed' ?>">
+    <h2 class="<?= $latestNoPick ? 'wait' : 'bad' ?>">
+      <?= $latestNoPick
+          ? 'Analysis completed — no stock qualified in this run'
+          : 'AI analysis failed — no pick was produced (no silent fallback)' ?></h2>
     <p class="muted" style="margin:8px 0"><b>Stage:</b> <?= htmlspecialchars($ae['stage'] ?? '?') ?>
       &nbsp;·&nbsp; <b>Reason:</b> <?= htmlspecialchars($ae['reason'] ?? '?') ?></p>
-    <p class="muted small">Let's fix it together — check these:</p>
+    <p class="muted small"><?= $latestNoPick
+        ? 'The engine completed normally and kept its standards. No candidate was invented.'
+        : "Let's fix it together — check these:" ?></p>
     <ul class="muted small" style="text-align:left; margin:6px 0 0 18px; line-height:1.8">
       <?php foreach (($ae['hints'] ?? []) as $h): ?>
         <li><?= htmlspecialchars($h) ?></li>
@@ -83,9 +112,17 @@ $NAV_ACTIVE = 'dash';
             try { $analysisMinute = (new DateTime($analysisRaw))->format('Y-m-d H:i'); }
             catch (Exception $e) { /* Preserve the explicit unavailable label. */ }
         } ?>
-  <section class="card">
+  <section class="card <?= $pickHistorical ? 'historical-pick' : '' ?>">
+    <?php if ($pickHistorical): ?>
+      <div class="historical-pick-banner"><b>Previous qualified result — historical</b>
+        <span><?= $latestNoPick
+            ? 'The newest run completed without a qualified pick.'
+            : 'The newest run failed before publishing a qualified result.' ?>
+          This older result is preserved for review and cannot start a new campaign.</span></div>
+    <?php endif; ?>
     <div class="camp-head">
-      <h2>AI pick of the day: <span class="grad-t"><?= htmlspecialchars($p['chosen']) ?></span></h2>
+      <h2><?= $pickHistorical ? 'Previous qualified pick:' : 'AI pick of the day:' ?>
+        <span class="grad-t"><?= htmlspecialchars($p['chosen']) ?></span></h2>
       <time class="analysis-time" datetime="<?= htmlspecialchars($pick['updated_at'] ?? '') ?>">
         Latest analysis · <?= htmlspecialchars($analysisMinute) ?></time>
     </div>
@@ -110,7 +147,9 @@ $NAV_ACTIVE = 'dash';
               <?= htmlspecialchars($t['decision'] ?? 'PASS') ?> · <?= htmlspecialchars($t['confidence'] ?? '—') ?> confidence
             </span></div>
           <p class="muted small"><?= htmlspecialchars($t['reason']) ?></p>
-          <?php if ($isRunning): ?>
+          <?php if ($pickHistorical): ?>
+            <button class="btn buybtn locked" disabled>Historical result — rerun before buying</button>
+          <?php elseif ($isRunning): ?>
             <button class="btn buybtn locked" disabled><span class="lockdot"></span>
               Auto-trading active — manage it on Monitor</button>
           <?php elseif ($isQueued): ?>
@@ -297,7 +336,9 @@ $NAV_ACTIVE = 'dash';
               <?php endif; ?>
               <div class="dd-review-footer">
                 <span class="dd-review-action">View full analysis <b>↓</b></span>
-                <?php if (!empty($running[$reviewTicker])): ?>
+                <?php if ($pickHistorical): ?>
+                  <button class="dd-candidate-buy locked" type="button" disabled>Historical result</button>
+                <?php elseif (!empty($running[$reviewTicker])): ?>
                   <button class="dd-candidate-buy locked" type="button" disabled>Auto-trading active</button>
                 <?php elseif (!empty($queued[$reviewTicker]['APPROVE_BUY'])): ?>
                   <button class="dd-candidate-buy locked" type="button" disabled>Paper order queued</button>
@@ -347,7 +388,7 @@ $NAV_ACTIVE = 'dash';
   <?php else: ?>
     <section class="card"><h2>No AI pick yet</h2>
       <p class="muted">Press <b>Analyze &amp; Pick Up to 3</b> above (engine service must
-      be running: <code>python runner/service.py</code>).</p></section>
+      be running: <code>python -X utf8 runner/service.py</code>).</p></section>
   <?php endif; ?>
 
   <footer class="foot">Trading AI Horizon · momentum engine · you approve, it executes</footer>
@@ -365,6 +406,7 @@ $NAV_ACTIVE = 'dash';
       <line x1="12" y1="33" x2="36" y2="33" stroke="#0b0f1a" stroke-width="3"/>
     </svg>
     <h3>AI momentum analysis in progress</h3>
+    <div class="an-run-state"><span id="anState">QUEUED</span><time id="anElapsed">00:00</time></div>
     <p class="an-stage" id="anStage">Contacting engine…</p>
     <div class="an-track"><div class="an-fill" id="anFill"></div></div>
     <p class="an-pct" id="anPct">0%</p>
@@ -757,12 +799,9 @@ purchaseConfirm?.addEventListener('click', async () => {
   }
 });
 
-// ---- Analyze overlay ----
+// ---- Run-aware analysis overlay + original synthesized cues ----
 let analysisAudioContext = null;
-
-// Original Web Audio completion cue: a short coin-payout style rise, created
-// locally rather than loading or imitating a copyrighted casino sound asset.
-function primeAnalysisCompletionSound() {
+function primeAnalysisSounds() {
   try {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     if (!AudioContext) return;
@@ -770,90 +809,147 @@ function primeAnalysisCompletionSound() {
     if (analysisAudioContext.state === 'suspended') analysisAudioContext.resume();
   } catch (e) {}
 }
-
-function playAnalysisCompletionSound() {
+function withAnalysisAudio(build) {
   const ctx = analysisAudioContext;
   if (!ctx) return;
   const play = () => {
-    const start = ctx.currentTime + 0.03;
-    const notes = [1318.5, 1568, 1975.5, 2637];
-    notes.forEach((frequency, index) => {
-      const oscillator = ctx.createOscillator();
-      const gain = ctx.createGain();
-      const at = start + index * 0.105;
-      oscillator.type = index === notes.length - 1 ? 'sine' : 'triangle';
-      oscillator.frequency.setValueAtTime(frequency, at);
-      gain.gain.setValueAtTime(0.0001, at);
-      gain.gain.exponentialRampToValueAtTime(index === notes.length - 1 ? 0.16 : 0.10, at + 0.012);
-      gain.gain.exponentialRampToValueAtTime(0.0001, at + (index === notes.length - 1 ? 0.38 : 0.13));
-      oscillator.connect(gain).connect(ctx.destination);
-      oscillator.start(at); oscillator.stop(at + 0.4);
-    });
+    const master = ctx.createGain();
+    const compressor = ctx.createDynamicsCompressor();
+    master.gain.setValueAtTime(0.48, ctx.currentTime);
+    compressor.threshold.value = -16; compressor.knee.value = 14;
+    compressor.ratio.value = 5; compressor.attack.value = 0.003;
+    compressor.release.value = 0.22;
+    master.connect(compressor).connect(ctx.destination);
+    build(ctx, master);
   };
-  if (ctx.state === 'suspended') ctx.resume().then(play).catch(() => {});
-  else play();
+  if (ctx.state === 'suspended') ctx.resume().then(play).catch(() => {}); else play();
+}
+function playAnalysisTriumph() {
+  withAnalysisAudio((ctx, out) => {
+    const start = ctx.currentTime + 0.04;
+    // A clear three-part brass-style fanfare: C major rise, then a sustained triumph chord.
+    [[523.25,0,.30],[659.25,.20,.30],[783.99,.40,.34],
+     [1046.5,.63,.70],[1318.5,.63,.70],[1567.98,.63,.70]].forEach(([hz, delay, length], i) => {
+      const osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.type = i < 3 ? 'sawtooth' : 'triangle';
+      osc.frequency.setValueAtTime(hz, start + delay);
+      gain.gain.setValueAtTime(.0001, start + delay);
+      gain.gain.exponentialRampToValueAtTime(i < 3 ? .14 : .11, start + delay + .025);
+      gain.gain.exponentialRampToValueAtTime(.0001, start + delay + length);
+      osc.connect(gain).connect(out); osc.start(start + delay); osc.stop(start + delay + length + .03);
+    });
+  });
+}
+function playAnalysisFailureCrash() {
+  withAnalysisAudio((ctx, out) => {
+    const start = ctx.currentTime + .03;
+    // Dramatic descending alarm and impact, synthesized locally at a capped level.
+    [0, .16].forEach(offset => {
+      const siren = ctx.createOscillator(), gain = ctx.createGain();
+      siren.type = 'sawtooth';
+      siren.frequency.setValueAtTime(620, start + offset);
+      siren.frequency.exponentialRampToValueAtTime(75, start + offset + 1.05);
+      gain.gain.setValueAtTime(.0001, start + offset);
+      gain.gain.exponentialRampToValueAtTime(.16, start + offset + .025);
+      gain.gain.exponentialRampToValueAtTime(.0001, start + offset + 1.12);
+      siren.connect(gain).connect(out); siren.start(start + offset); siren.stop(start + offset + 1.14);
+    });
+    const length = Math.floor(ctx.sampleRate * 1.15), buffer = ctx.createBuffer(1, length, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < length; i++) data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (length * .17));
+    const noise = ctx.createBufferSource(), filter = ctx.createBiquadFilter(), impact = ctx.createGain();
+    noise.buffer = buffer; filter.type = 'lowpass'; filter.frequency.value = 310;
+    impact.gain.setValueAtTime(.0001, start + .88);
+    impact.gain.exponentialRampToValueAtTime(.42, start + .90);
+    impact.gain.exponentialRampToValueAtTime(.0001, start + 1.95);
+    noise.connect(filter).connect(impact).connect(out); noise.start(start + .88);
+  });
+}
+function formatAnalysisElapsed(seconds) {
+  const total = Math.max(0, Number(seconds) || 0), hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60), secs = Math.floor(total % 60);
+  return (hours ? String(hours).padStart(2, '0') + ':' : '') +
+    String(minutes).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
+}
+async function queueAnalysisRun() {
+  const response = await fetch('api/command.php', {method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action:'RUN_ANALYSIS',ticker:'ALL',csrf:CSRF})});
+  const data = await response.json();
+  if (!response.ok || data.ok !== true || !data.run_id) throw new Error(data.error || 'queue failed');
+  return data;
 }
 
 const anBtn = document.getElementById('analyzeBtn');
 if (anBtn) anBtn.addEventListener('click', async () => {
-  primeAnalysisCompletionSound();
-  const ov = document.getElementById('anOverlay');
-  const fill = document.getElementById('anFill');
-  const pct = document.getElementById('anPct');
-  const stage = document.getElementById('anStage');
-  const stages = [[4, 'Contacting engine…'], [15, 'Screening 500+ stocks — momentum, liquidity & risk'],
-                  [35, 'Comparing SPY, sectors, earnings & Open Attention Trend'],
-                  [50, 'AI pass 1 — shortlisting the strongest candidates…'],
-                  [64, 'Deep due diligence: financials, insiders, earnings calendar…'],
-                  [82, 'AI pass 2 — writing the analyst report…'],
-                  [93, 'Publishing the new Top 3…']];
-  let before = null;
-  try { before = (await (await fetch('api/docmeta.php?k=daily_pick')).json()).updated_at; }
-  catch (e) {}
-  if (!(await queueCommand('RUN_ANALYSIS', 'ALL', CSRF))) { alert('Could not start.'); return; }
-  ov.classList.add('open');
-  const t0 = Date.now();
-  let done = false;
-  const anim = setInterval(() => {
-    const sec = (Date.now() - t0) / 1000;
-    const target = Math.min(94, 4 + 90 * (1 - Math.exp(-sec / 55)));
-    fill.style.width = target + '%';
-    pct.textContent = Math.round(target) + '%';
-    for (const [p, txt] of stages) if (target >= p) stage.textContent = txt;
-    if (sec > 420 && !done) {                    // 7 min: engine likely offline
-      clearInterval(anim); clearInterval(poll);
-      stage.textContent = 'No response — is the engine service running?';
-      document.getElementById('anHint').textContent =
-        'Start it on your PC:  python runner/service.py   — then try again.';
-      fill.style.width = '0%'; pct.textContent = '';
-      setTimeout(() => ov.classList.remove('open'), 6000);
+  primeAnalysisSounds();
+  const ov = document.getElementById('anOverlay'), fill = document.getElementById('anFill');
+  const pct = document.getElementById('anPct'), stage = document.getElementById('anStage');
+  const hint = document.getElementById('anHint'), stateEl = document.getElementById('anState');
+  const elapsedEl = document.getElementById('anElapsed');
+  anBtn.disabled = true;
+  let run;
+  try { run = await queueAnalysisRun(); }
+  catch (e) { anBtn.disabled = false; alert('Could not queue the analysis. No run was started.'); return; }
+  ov.classList.add('open'); ov.setAttribute('aria-hidden', 'false');
+  let terminal = false, lastStatus = null, statusRenderedAt = Date.now();
+  const render = status => {
+    lastStatus = status; statusRenderedAt = Date.now(); const sec = status.elapsed_seconds || 0;
+    elapsedEl.textContent = formatAnalysisElapsed(sec);
+    stateEl.textContent = String(status.state || 'queued').replaceAll('_', ' ').toUpperCase();
+    const floors = {queued:5,starting:12,running:22,completed:100,completed_no_pick:100,failed:0};
+    let progress = floors[status.state] ?? 5;
+    if (status.state === 'running') progress = Math.min(94, 22 + 72 * (1 - Math.exp(-sec / 180)));
+    fill.style.width = progress + '%'; pct.textContent = status.state === 'failed' ? '' : Math.round(progress) + '%';
+    stage.textContent = status.message || 'Waiting for engine status…';
+    if (['queued','starting','running'].includes(status.state) && status.engine && !status.engine.online) {
+      stage.textContent = status.state === 'queued'
+        ? 'Queued safely — the PC engine heartbeat is currently stale.'
+        : 'PC engine heartbeat is stale — preserving the last known run state.';
+      hint.textContent = status.state === 'queued'
+        ? 'The command remains pending. Start python -X utf8 runner/service.py on the PC; no monitoring or analysis runs while it is offline.'
+        : 'Monitoring and analysis cannot be claimed while the PC heartbeat is stale. Restart the service if it does not recover.';
+      stateEl.textContent = 'ENGINE OFFLINE';
+    } else if (status.state === 'running' && sec > 420) {
+      hint.textContent = 'This run is still active. Paper monitoring continues independently; the engine allows up to 30 minutes before its protection limit stops the worker.';
+    } else if (status.state === 'starting') {
+      hint.textContent = 'The engine accepted this exact run and is starting its isolated low-priority analysis worker.';
     }
-  }, 400);
-  let errBefore = null;
-  try { errBefore = (await (await fetch('api/docmeta.php?k=analysis_error')).json()).updated_at; }
-  catch (e) {}
-  const poll = setInterval(async () => {
+  };
+  const finish = status => {
+    terminal = true; clearInterval(poll); clearInterval(clock); render(status);
+    if (status.state === 'completed') {
+      stage.textContent = 'Done — new qualified picks are ready!'; playAnalysisTriumph();
+      hint.textContent = 'The complete result was published for this run.';
+    } else if (status.state === 'completed_no_pick') {
+      stage.textContent = 'Complete — no stock passed every required gate today.';
+      hint.textContent = 'This is an honest no-pick result, not a service failure. No candidate was fabricated.';
+    } else {
+      stage.textContent = 'Analysis failed — ' + (status.reason || status.message || 'see the diagnostic');
+      hint.textContent = 'No silent fallback was used. The engine continued Paper monitoring.';
+      playAnalysisFailureCrash();
+    }
+    setTimeout(() => location.reload(), status.state === 'failed' ? 3200 : 1800);
+  };
+  const check = async () => {
     try {
-      const now = (await (await fetch('api/docmeta.php?k=daily_pick')).json()).updated_at;
-      if (now && now !== before) {
-        done = true; clearInterval(anim); clearInterval(poll);
-        fill.style.width = '100%'; pct.textContent = '100%';
-        stage.textContent = 'Done — new qualified picks ready!';
-        playAnalysisCompletionSound();
-        setTimeout(() => location.reload(), 900);
-        return;
-      }
-      const ej = await (await fetch('api/docmeta.php?k=analysis_error')).json();
-      if (ej.updated_at && ej.updated_at !== errBefore) {   // honest failure surfaced
-        done = true; clearInterval(anim); clearInterval(poll);
-        stage.textContent = 'Analysis failed — ' + (ej.data?.reason || 'see dashboard');
-        document.getElementById('anHint').textContent =
-          'No fallback was used. Reloading to show the full diagnostic…';
-        fill.style.width = '0%'; pct.textContent = '';
-        setTimeout(() => location.reload(), 2500);
-      }
-    } catch (e) {}
-  }, 5000);
+      const response = await fetch('api/analysis_run.php?run_id=' + encodeURIComponent(run.run_id), {cache:'no-store'});
+      const status = await response.json();
+      if (!response.ok || status.ok !== true) throw new Error(status.error || 'status unavailable');
+      render(status);
+      if (['completed','completed_no_pick','failed'].includes(status.state)) finish(status);
+    } catch (e) {
+      stage.textContent = 'The website could not read run status — retrying…';
+      hint.textContent = 'This is not evidence that the PC engine stopped. The page will keep checking this run.';
+      stateEl.textContent = 'STATUS RETRY';
+    }
+  };
+  const poll = setInterval(check, 2500);
+  const clock = setInterval(() => {
+    if (!terminal && lastStatus) elapsedEl.textContent = formatAnalysisElapsed(
+      (lastStatus.elapsed_seconds || 0) + Math.floor((Date.now() - statusRenderedAt) / 1000));
+  }, 1000);
+  check();
 });
 </script>
 </body>

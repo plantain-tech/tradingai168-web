@@ -445,6 +445,11 @@ select.in option{background:#12172a; color:var(--ink)}
 @keyframes anpulse{0%,100%{transform:scale(1); filter:drop-shadow(0 0 0 rgba(34,211,238,0))}
   50%{transform:scale(1.07); filter:drop-shadow(0 0 18px rgba(34,211,238,.45))}}
 .an-box h3{font-size:19px; font-weight:800; margin:12px 0 4px}
+.an-run-state{display:flex;align-items:center;justify-content:center;gap:10px;margin:9px 0 6px}
+.an-run-state span,.an-run-state time{padding:5px 9px;border:1px solid rgba(34,211,238,.18);
+  border-radius:999px;background:rgba(34,211,238,.055);color:#a5f3fc;font-size:9px;
+  font-weight:800;letter-spacing:.09em;font-variant-numeric:tabular-nums}
+.an-run-state time{color:var(--muted);border-color:var(--line);background:rgba(255,255,255,.025)}
 .an-stage{font-size:13px; color:var(--brand2); min-height:20px; margin-bottom:14px;
   transition:opacity .3s}
 .an-track{height:8px; border-radius:999px; background:rgba(255,255,255,.07);
@@ -457,6 +462,19 @@ select.in option{background:#12172a; color:var(--ink)}
   background-size:200% 100%; animation:anflow 1.4s linear infinite}
 @keyframes anflow{from{background-position:200% 0}to{background-position:-200% 0}}
 .an-pct{font-size:12px; color:var(--muted); margin:8px 0 10px; font-variant-numeric:tabular-nums}
+.analysis-outcome-card{border-width:1px;border-style:solid}
+.analysis-outcome-card.failed{border-color:rgba(248,113,113,.4)}
+.analysis-outcome-card.no-pick{border-color:rgba(251,191,36,.34);
+  background:linear-gradient(145deg,rgba(251,191,36,.055),rgba(17,23,41,.82))}
+.analysis-outcome-card.no-pick h2{color:#fbbf24}
+.historical-pick{position:relative;border-color:rgba(251,191,36,.2);filter:saturate(.82)}
+.historical-pick-banner{display:flex;align-items:center;justify-content:space-between;gap:14px;
+  margin:-5px -4px 18px;padding:11px 13px;border:1px solid rgba(251,191,36,.24);border-radius:12px;
+  background:rgba(251,191,36,.065);color:#fde68a}
+.historical-pick-banner b{font-size:10px;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+.historical-pick-banner span{color:var(--muted);font-size:9px;line-height:1.45;text-align:right}
+@media(max-width:620px){.historical-pick-banner{align-items:flex-start;flex-direction:column}
+  .historical-pick-banner span{text-align:left}}
 
 /* ---- score breakdown in AI panel ---- */
 .siggrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr));

@@ -30,12 +30,14 @@ function doc_set(string $k, $value): void {
 
 function doc_get(string $k, $default = null) {
     ensure_engine_tables();
-    $st = db()->prepare("SELECT v, updated_at FROM engine_docs WHERE k = ?");
+    $st = db()->prepare("SELECT v, updated_at, UNIX_TIMESTAMP(updated_at) AS updated_epoch
+                         FROM engine_docs WHERE k = ?");
     $st->execute([$k]);
     $r = $st->fetch();
     if (!$r) { return $default; }
     $v = json_decode($r['v'], true);
-    return ['data' => $v, 'updated_at' => $r['updated_at']];
+    return ['data' => $v, 'updated_at' => $r['updated_at'],
+            'updated_epoch' => (int) $r['updated_epoch']];
 }
 
 function docs_all(string $prefix): array {
@@ -50,16 +52,67 @@ function docs_all(string $prefix): array {
     return $out;
 }
 
-function command_create(string $action, string $ticker, string $note = ''): void {
+function command_create(string $action, string $ticker, string $note = ''): array {
     ensure_engine_tables();
     // Idempotent: don't stack duplicate pending commands for same action+ticker.
-    $st = db()->prepare("SELECT COUNT(*) FROM commands
-                         WHERE status='pending' AND action=? AND ticker=?");
+    $st = db()->prepare("SELECT id, note, created_at FROM commands
+                         WHERE status='pending' AND action=? AND ticker=?
+                         ORDER BY id DESC LIMIT 1");
     $st->execute([$action, $ticker]);
-    if ((int) $st->fetchColumn() === 0) {
-        db()->prepare("INSERT INTO commands (action, ticker, note) VALUES (?,?,?)")
-            ->execute([$action, $ticker, $note]);
+    $existing = $st->fetch();
+    if ($existing) {
+        return ['id' => (int) $existing['id'], 'created' => false,
+                'note' => (string) ($existing['note'] ?? ''),
+                'created_at' => $existing['created_at']];
     }
+    db()->prepare("INSERT INTO commands (action, ticker, note) VALUES (?,?,?)")
+        ->execute([$action, $ticker, $note]);
+    return ['id' => (int) db()->lastInsertId(), 'created' => true,
+            'note' => $note, 'created_at' => gmdate('Y-m-d H:i:s')];
+}
+
+function command_get(int $id): ?array {
+    ensure_engine_tables();
+    $st = db()->prepare("SELECT id, action, ticker, note, status, created_at, done_at
+                         FROM commands WHERE id=?");
+    $st->execute([$id]);
+    $row = $st->fetch();
+    return $row ?: null;
+}
+
+function analysis_is_no_pick(?array $error): bool {
+    if (!$error) { return false; }
+    $stage = strtolower((string) ($error['stage'] ?? ''));
+    $reason = strtolower((string) ($error['reason'] ?? ''));
+    $knownStages = ['quantitative candidate selection', 'earnings candidate selection',
+                    'stage-2 screen', 'ai due diligence'];
+    if (!in_array($stage, $knownStages, true)) { return false; }
+    foreach (['no stock passed', 'all quantitatively ranked stocks were excluded',
+              'no shortlisted stock earned'] as $phrase) {
+        if (str_contains($reason, $phrase)) { return true; }
+    }
+    return false;
+}
+
+function analysis_run_doc_key(string $runId): ?string {
+    if (!preg_match('/^analysis-[a-zA-Z0-9-]{12,48}$/', $runId)) { return null; }
+    $key = 'analysis_run_' . $runId;
+    return strlen($key) <= 64 ? $key : null;
+}
+
+function prune_analysis_run_docs(int $keep = 60): void {
+    // Run records are immutable while retained, but storage must remain bounded
+    // for the small Hostinger database. Delete at most one bounded page of the
+    // oldest records whenever a new run is created.
+    ensure_engine_tables();
+    $keep = max(10, min(200, $keep));
+    $st = db()->query("SELECT k FROM engine_docs
+                       WHERE k LIKE 'analysis\\_run\\_%' ESCAPE '\\\\'
+                       ORDER BY updated_at DESC, k DESC LIMIT 100 OFFSET {$keep}");
+    $keys = array_column($st->fetchAll(), 'k');
+    if (!$keys) { return; }
+    $del = db()->prepare('DELETE FROM engine_docs WHERE k=?');
+    foreach ($keys as $key) { $del->execute([$key]); }
 }
 
 function commands_pending(): array {

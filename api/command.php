@@ -42,5 +42,74 @@ if (!in_array($action, ['APPROVE_BUY', 'APPROVE_DCA', 'HOLD_DCA',
                         'RUN_ANALYSIS'], true) || !$ticker) {
     http_response_code(400); echo '{"error":"bad command"}'; exit;
 }
-command_create($action, $ticker, 'one-click from dashboard by ' . $_SESSION['email']);
-echo json_encode(['ok' => true, 'queued' => "$action $ticker"]);
+$note = 'one-click from dashboard by ' . $_SESSION['email'];
+$runId = null;
+if ($action === 'RUN_ANALYSIS') {
+    $currentStatus = doc_get('analysis_status');
+    $currentState = strtolower((string) ($currentStatus['data']['state'] ?? ''));
+    $currentAge = max(0, time() - (int) ($currentStatus['updated_epoch'] ?? 0));
+    $currentHealth = doc_get('engine_health');
+    $healthData = $currentHealth['data'] ?? [];
+    $lastSeen = strtotime((string) ($healthData['last_seen_at'] ?? '')) ?: 0;
+    $staleAfter = max(30, (int) ($healthData['stale_after_seconds'] ?? 95));
+    $engineOnline = (($healthData['status'] ?? '') === 'running' && $lastSeen
+                     && time() - $lastSeen <= $staleAfter);
+    if (in_array($currentState, ['starting', 'running'], true)
+            && $currentAge <= 35 * 60 && $engineOnline) {
+        $currentRunId = (string) ($currentStatus['data']['run_id'] ?? '');
+        if (!$currentRunId) {
+            $uiCurrent = doc_get('analysis_ui_run');
+            $uiState = strtolower((string) ($uiCurrent['data']['state'] ?? ''));
+            if (in_array($uiState, ['starting', 'running'], true)) {
+                $currentRunId = (string) ($uiCurrent['data']['run_id'] ?? '');
+            }
+        }
+        if (analysis_run_doc_key($currentRunId)) {
+            echo json_encode(['ok' => true, 'queued' => "$action $ticker",
+                              'run_id' => $currentRunId, 'already_running' => true]);
+            exit;
+        }
+        http_response_code(409);
+        echo json_encode(['error' => 'analysis already running', 'already_running' => true]);
+        exit;
+    }
+    foreach (commands_pending() as $pending) {
+        if (($pending['action'] ?? '') !== 'RUN_ANALYSIS') { continue; }
+        if (preg_match('/(?:^|;)run_id=([a-zA-Z0-9_-]{12,80})(?:;|$)/',
+                       (string) ($pending['note'] ?? ''), $m)) {
+            echo json_encode(['ok' => true, 'queued' => "$action $ticker",
+                              'run_id' => $m[1], 'already_queued' => true]);
+            exit;
+        }
+    }
+    try { $entropy = bin2hex(random_bytes(5)); }
+    catch (Exception $e) { $entropy = substr(hash('sha256', uniqid('', true)), 0, 10); }
+    $runId = 'analysis-' . gmdate('Ymd-His') . '-' . $entropy;
+    $statusBefore = doc_get('analysis_status');
+    $pickBefore = doc_get('daily_pick');
+    $errorBefore = doc_get('analysis_error');
+    $note = 'run_id=' . $runId . ';dashboard by ' . $_SESSION['email'];
+    // Establish the run and its baselines before making it visible to the engine.
+    $runRecord = [
+        'run_id' => $runId,
+        'state' => 'queued',
+        'queued_at' => gmdate('c'),
+        'status_epoch_before' => (int) ($statusBefore['updated_epoch'] ?? 0),
+        'pick_epoch_before' => (int) ($pickBefore['updated_epoch'] ?? 0),
+        'error_epoch_before' => (int) ($errorBefore['updated_epoch'] ?? 0),
+    ];
+    doc_set('analysis_ui_run', $runRecord);
+    doc_set(analysis_run_doc_key($runId), $runRecord);
+    prune_analysis_run_docs(60);
+}
+$created = command_create($action, $ticker, $note);
+if ($runId) {
+    $uiRun = doc_get('analysis_ui_run');
+    $runData = $uiRun['data'] ?? [];
+    $runData['command_id'] = (int) $created['id'];
+    $runData['command_created'] = (bool) $created['created'];
+    doc_set('analysis_ui_run', $runData);
+    doc_set(analysis_run_doc_key($runId), $runData);
+}
+echo json_encode(['ok' => true, 'queued' => "$action $ticker",
+                  'command_id' => (int) $created['id'], 'run_id' => $runId]);
