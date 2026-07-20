@@ -82,7 +82,7 @@ $NAV_ACTIVE = 'dash';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Trading AI Horizon — Dashboard</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=38">
+<link rel="stylesheet" href="assets/css/app.css?v=39">
 </head>
 <body>
 <div class="bg"></div>
@@ -317,6 +317,16 @@ $NAV_ACTIVE = 'dash';
               $qwenVerdict = strtoupper($r['challenger']['effective_verdict'] ?? 'UNAVAILABLE');
               $qwenReason = $r['challenger']['reason'] ?? '';
               $qwenDisplayReason = $qwenReason;
+              $qwenBrief = 'Provider diagnostic';
+              if (preg_match('/HTTP\s+(\d+)/i', $qwenReason, $qwenHttp)) {
+                  $qwenBrief = 'HTTP ' . $qwenHttp[1];
+              }
+              if (stripos($qwenReason, 'rate_limit_exceeded') !== false
+                  || stripos($qwenReason, 'tokens per minute') !== false) {
+                  $qwenBrief .= ' - Token limit exceeded';
+              } elseif (stripos($qwenReason, 'local token preflight') !== false) {
+                  $qwenBrief = 'Local token preflight - Request not sent';
+              }
               if ($qwenVerdict === 'FAILED' && preg_match('/HTTP 400$/', $qwenReason)) {
                   $qwenDisplayReason .= ' · Detailed Groq message was not retained for this historical result.';
               }
@@ -351,8 +361,18 @@ $NAV_ACTIVE = 'dash';
               </div>
               <p><?= htmlspecialchars($r['reason'] ?? '') ?></p>
               <?php if (in_array($qwenVerdict, ['FAILED', 'UNAVAILABLE'], true) && $qwenReason): ?>
-                <small class="qwen-note">Qwen <?= strtolower($qwenVerdict) ?>:
-                  <?= htmlspecialchars($qwenDisplayReason) ?></small>
+                <details class="qwen-alert">
+                  <summary>
+                    <span class="qwen-alert-mark" aria-hidden="true">!</span>
+                    <span><b>Qwen <?= strtolower(htmlspecialchars($qwenVerdict)) ?></b>
+                      <small><?= htmlspecialchars($qwenBrief) ?></small></span>
+                    <em>Full details</em>
+                  </summary>
+                  <div class="qwen-alert-body">
+                    <span>Groq returned this bounded diagnostic. No Qwen verdict was invented.</span>
+                    <p><?= htmlspecialchars($qwenDisplayReason) ?></p>
+                  </div>
+                </details>
               <?php endif; ?>
               <div class="dd-review-footer">
                 <span class="dd-review-action">View full analysis <b>↓</b></span>
@@ -362,18 +382,20 @@ $NAV_ACTIVE = 'dash';
                   <button class="dd-candidate-buy locked" type="button" disabled>Auto-trading active</button>
                 <?php elseif (!empty($queued[$reviewTicker]['APPROVE_BUY'])): ?>
                   <button class="dd-candidate-buy locked" type="button" disabled>Paper order queued</button>
-                <?php elseif ($decision !== 'PASS' || empty($selectedTickers[$reviewTicker])): ?>
+                <?php elseif ($decision === 'VETO'): ?>
                   <button class="dd-candidate-buy locked" type="button" disabled
-                          title="Only final evidence-supported selections can start a campaign">
-                    <?= htmlspecialchars($decision) ?> · No buy</button>
+                          title="A vetoed candidate cannot start a campaign">VETO · No buy</button>
                 <?php elseif ($slotsFull): ?>
                   <button class="dd-candidate-buy locked" type="button" disabled>Campaign slots full</button>
+                <?php elseif (!in_array($decision, ['PASS', 'WATCH'], true)): ?>
+                  <button class="dd-candidate-buy locked" type="button" disabled>Not eligible</button>
                 <?php else: ?>
                   <button class="dd-candidate-buy buy-choice" type="button"
                           data-ticker="<?= $reviewTickerHtml ?>"
                           data-name="<?= htmlspecialchars($names[$reviewTicker] ?? $reviewTicker) ?>"
+                          data-decision="<?= htmlspecialchars($decision) ?>"
                           data-price="<?= htmlspecialchars((string) ($candidatePrices[$reviewTicker] ?? '')) ?>">
-                    Choose buy mode</button>
+                    <?= $decision === 'WATCH' ? 'Review WATCH buy' : 'Choose buy mode' ?></button>
                 <?php endif; ?>
               </div>
             </div>
@@ -582,7 +604,6 @@ function renderPanel(card) {
                  challenger_model: 'Independent challenger',
                  challenger_status: 'Challenger status',
                  challenger_verdict: 'Qwen verdict',
-                 challenger_reason: 'Qwen review',
                  dd_earnings: 'DD · Earnings (30)', dd_business_quality: 'DD · Business quality (25)',
                  dd_financial_strength: 'DD · Financial strength (20)',
                  dd_valuation: 'DD · Valuation (10)', dd_catalysts: 'DD · Catalysts (10)',
@@ -623,11 +644,26 @@ function renderPanel(card) {
       : v;
   const sigHtml = Object.keys(label).map(k =>
       `<div class="sigcell"><span>${esc(label[k])}</span><b>${esc(fmtV(k, sig[k]))}</b></div>`).join('');
+  const qwenReason = String(sig.challenger_reason || '').trim();
+  let qwenHtml = '';
+  if (qwenReason) {
+    const http = qwenReason.match(/HTTP\s+(\d+)/i);
+    const limited = /rate_limit_exceeded|tokens per minute/i.test(qwenReason);
+    const preflight = /local token preflight/i.test(qwenReason);
+    const brief = preflight ? 'Local token preflight - Request not sent'
+      : `${http ? `HTTP ${http[1]}` : 'Provider response'}${limited ? ' - Token limit exceeded' : ''}`;
+    qwenHtml = `<details class="qwen-alert qwen-panel-alert"><summary>` +
+      `<span class="qwen-alert-mark" aria-hidden="true">!</span>` +
+      `<span><b>Qwen review - ${esc(String(sig.challenger_verdict || sig.challenger_status || 'Unavailable'))}</b>` +
+      `<small>${esc(brief)}</small></span><em>Full details</em></summary>` +
+      `<div class="qwen-alert-body"><span>Complete bounded challenger diagnostic</span>` +
+      `<p>${esc(qwenReason)}</p></div></details>`;
+  }
   const basis = card.dataset.basis
       ? `<div class="basis"><b>How the score of ${esc(card.dataset.score)} was built:</b> ` +
         `<span>${esc(humanizeScoreBasis(card.dataset.basis))}</span></div>` : '';
   body.innerHTML =
-      `<div class="siggrid">${sigHtml}</div>${basis}` + mdReport(card.dataset.analysis);
+      `<div class="siggrid">${sigHtml}</div>${qwenHtml}${basis}` + mdReport(card.dataset.analysis);
 }
 
 // Render the analyst report: "HEADING:" lines become section titles, prose flows.
@@ -770,10 +806,12 @@ if (panel) {
       }, 180);
     };
     card.addEventListener('click', e => {
+      if (e.target.closest('.qwen-alert')) return;
       if (card.classList.contains('dd-review-row') || !e.target.closest('button')) select();
     });
     if (!card.matches('button')) {
       card.addEventListener('keydown', e => {
+        if (e.target.closest('.qwen-alert')) return;
         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(); }
       });
     }
@@ -790,7 +828,7 @@ const purchaseNotice = document.getElementById('purchaseModeNotice');
 const purchaseConfirm = document.getElementById('purchaseModeConfirm');
 const purchasePaper = document.getElementById('purchasePaperChoice');
 const purchaseLive = document.getElementById('purchaseLiveChoice');
-let purchaseState = {ticker:'', name:'', price:'', mode:'paper', trigger:null};
+let purchaseState = {ticker:'', name:'', price:'', decision:'PASS', mode:'paper', trigger:null};
 
 function selectPurchaseMode(mode) {
   purchaseState.mode = mode;
@@ -800,11 +838,15 @@ function selectPurchaseMode(mode) {
     choice.setAttribute('aria-pressed', selected ? 'true' : 'false');
   });
   const live = mode === 'live';
+  const watchOverride = purchaseState.decision === 'WATCH';
   purchaseNotice.className = `purchase-notice ${live ? 'live' : 'paper'}`;
   purchaseNotice.textContent = live
     ? 'Live production is intentionally locked. This platform has no isolated live campaign ledger or authenticated live-order queue yet, so no real-money order can be sent from this modal.'
-    : `Paper confirmation queues ${purchaseState.ticker} for the running Moomoo simulated-account engine. The engine rechecks market hours, campaign slots, budget, correlation, spread, and current broker prices before ordering.`;
-  purchaseConfirm.textContent = live ? 'Open Live Preparation' : 'Queue Paper Buy';
+    : watchOverride
+      ? `WATCH means unresolved evidence or risk remains. Your confirmation is an explicit manual Paper override for ${purchaseState.ticker}; the engine still rechecks market hours, campaign slots, budget, correlation, spread, and current Moomoo prices before ordering.`
+      : `Paper confirmation queues ${purchaseState.ticker} for the running Moomoo simulated-account engine. The engine rechecks market hours, campaign slots, budget, correlation, spread, and current broker prices before ordering.`;
+  purchaseConfirm.textContent = live ? 'Open Live Preparation'
+    : watchOverride ? 'Confirm WATCH Paper Buy' : 'Queue Paper Buy';
   purchaseConfirm.classList.toggle('danger', live);
 }
 
@@ -818,12 +860,15 @@ function closePurchaseMode() {
 function openPurchaseMode(btn) {
   if (!purchaseBack) return;
   purchaseState = {ticker:btn.dataset.ticker || '', name:btn.dataset.name || '',
-                   price:btn.dataset.price || '', mode:'paper', trigger:btn};
-  document.getElementById('purchaseModeTitle').textContent = `Buy ${purchaseState.ticker}?`;
+                   price:btn.dataset.price || '', decision:btn.dataset.decision || 'PASS',
+                   mode:'paper', trigger:btn};
+  document.getElementById('purchaseModeTitle').textContent = purchaseState.decision === 'WATCH'
+    ? `Review WATCH candidate ${purchaseState.ticker}` : `Buy ${purchaseState.ticker}?`;
   const shownPrice = purchaseState.price && Number.isFinite(Number(purchaseState.price))
     ? `$${Number(purchaseState.price).toFixed(2)}` : 'Verified again at order time';
   purchaseSummary.innerHTML = [
     ['Company', purchaseState.name || purchaseState.ticker],
+    ['Review status', purchaseState.decision],
     ['First tranche', `${TRANCHE} shares`],
     ['Analysis price', shownPrice]
   ].map(([label,value]) => `<span><small>${esc(label)}</small><b>${esc(value)}</b></span>`).join('');
