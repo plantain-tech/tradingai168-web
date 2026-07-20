@@ -44,4 +44,21 @@ expect_true(strlen($key) <= 64, 'the durable run key fits the engine-doc schema'
 expect_true(analysis_run_doc_key('../../unsafe') === null,
             'unsafe run identifiers are rejected');
 
+$dashboardSource = file_get_contents(__DIR__ . '/../index.php');
+$commandSource = file_get_contents(__DIR__ . '/../api/command.php');
+$modalSource = file_get_contents(__DIR__ . '/../inc/modal.php');
+expect_true(strpos($dashboardSource, 'data-historical="<?= $pickHistorical ? \'1\' : \'0\' ?>"') !== false,
+            'historical PASS and WATCH candidates carry an explicit purchase source');
+expect_true(strpos($dashboardSource, 'Historical result — rerun before buying') === false,
+            'historical results are no longer unconditionally disabled');
+expect_true(strpos($dashboardSource, 'current-challenger-state') !== false
+            && strpos($dashboardSource, 'Earlier saved Qwen') !== false
+            && strpos($dashboardSource, "'OLDER RUN ' . \$qwenVerdict") !== false,
+            'current challenger health is separated from saved historical failures');
+expect_true(strpos($commandSource, 'analysis_source=') !== false
+            && strpos($commandSource, 'analysis_run_id=') !== false,
+            'historical buy approvals retain their analysis provenance in the command audit');
+expect_true(strpos($modalSource, '...metadata') !== false,
+            'the shared authenticated command helper carries bounded provenance metadata');
+
 echo "Analysis run web contracts verified.\n";

@@ -232,6 +232,14 @@ select.in option{background:#12172a; color:var(--ink)}
 .purchase-notice{position:relative;margin-top:12px;padding:10px 12px;border-radius:11px;font-size:10.5px;line-height:1.5}
 .purchase-notice.paper{color:#a7f3d0;border:1px solid rgba(52,211,153,.2);background:rgba(52,211,153,.06)}
 .purchase-notice.live{color:#fde68a;border:1px solid rgba(251,191,36,.22);background:rgba(251,191,36,.07)}
+.current-challenger-state{display:flex;align-items:flex-start;gap:9px;margin-top:13px;padding:10px 12px;
+  border:1px solid rgba(148,163,184,.18);border-radius:11px;color:var(--muted);font-size:10px;
+  line-height:1.5;background:rgba(255,255,255,.025)}
+.current-challenger-state i{flex:0 0 7px;width:7px;height:7px;margin-top:4px;border-radius:50%;background:#fbbf24;
+  box-shadow:0 0 10px rgba(251,191,36,.42)}
+.current-challenger-state.complete{color:#a7f3d0;border-color:rgba(52,211,153,.22);background:rgba(52,211,153,.055)}
+.current-challenger-state.complete i{background:var(--ok);box-shadow:0 0 11px rgba(52,211,153,.5)}
+.current-challenger-state b{display:block;margin-bottom:2px;color:var(--ink);text-transform:capitalize}
 .purchase-actions{position:relative;display:flex;gap:10px;margin-top:15px}.purchase-actions .btn{margin:0}
 .purchase-actions .btn:disabled{opacity:.5;cursor:not-allowed;transform:none;box-shadow:none}
 .dd-review-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px}
@@ -239,6 +247,10 @@ select.in option{background:#12172a; color:var(--ink)}
   border:1px solid rgba(34,211,238,.28);color:var(--brand2);background:rgba(34,211,238,.07);
   font:inherit;font-size:9px;font-weight:800;cursor:pointer;transition:background .2s,border-color .2s,transform .2s}
 .dd-candidate-buy:hover,.dd-candidate-buy:focus-visible{transform:translateY(-1px);border-color:rgba(34,211,238,.55);background:rgba(34,211,238,.12)}
+.historical-pick .buy-choice{border-color:rgba(251,191,36,.34);color:#fde68a;
+  background:linear-gradient(105deg,rgba(251,191,36,.09),rgba(34,211,238,.055))}
+.historical-pick .buy-choice:hover,.historical-pick .buy-choice:focus-visible{border-color:rgba(251,191,36,.6);
+  box-shadow:0 7px 20px rgba(0,0,0,.18),0 0 18px rgba(251,191,36,.08)}
 .dd-candidate-buy.locked{color:var(--muted);border-color:var(--line);background:rgba(255,255,255,.025);cursor:not-allowed;transform:none}
 @media(max-width:620px){.purchase-dialog{padding:20px 15px}.purchase-accounts{grid-template-columns:1fr}
   .purchase-summary{grid-template-columns:1fr}.purchase-heading p{font-size:10px}.purchase-actions{flex-direction:column-reverse}

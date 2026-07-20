@@ -35,10 +35,10 @@ function lockButton(btn, hint) {
   btn.classList.add('locked');
   btn.innerHTML = '<span class="lockdot"></span>' + hint;
 }
-async function queueCommand(action, ticker, csrf) {
+async function queueCommand(action, ticker, csrf, metadata = {}) {
   const r = await fetch('api/command.php', {method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({action, ticker, csrf})});
+    body: JSON.stringify({...metadata, action, ticker, csrf})});
   return (await r.json()).ok === true;
 }
 </script>

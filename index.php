@@ -54,6 +54,14 @@ $latestNoPick = $latestTerminalOutcome && ($analysisState === 'completed_no_pick
     || ($errorMatchesStatus && analysis_is_no_pick($anErr['data'] ?? [])));
 $showErr = $latestTerminalOutcome;
 $pickHistorical = (bool) ($pick && $latestTerminalOutcome);
+$currentChallenger = ($errorMatchesStatus
+    && is_array($anErr['data']['details']['challenger'] ?? null))
+    ? $anErr['data']['details']['challenger'] : [];
+$currentChallengerStatus = strtolower((string) ($currentChallenger['status'] ?? ''));
+$currentChallengerComplete = $latestNoPick
+    && $currentChallengerStatus === 'completed';
+$currentChallengerRequests = (int) ($currentChallenger['request_budget']['completed_requests']
+    ?? $currentChallenger['request_budget']['completed_batches'] ?? 0);
 $candidateRows = array_values(array_filter(
     is_array($candDoc['data'] ?? null) ? $candDoc['data'] : [],
     fn($row) => is_array($row) && !empty($row['ticker'])
@@ -82,7 +90,7 @@ $NAV_ACTIVE = 'dash';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Trading AI Horizon — Dashboard</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=39">
+<link rel="stylesheet" href="assets/css/app.css?v=40">
 </head>
 <body>
 <div class="bg"></div>
@@ -122,6 +130,17 @@ $NAV_ACTIVE = 'dash';
         <li><?= htmlspecialchars($h) ?></li>
       <?php endforeach; ?>
     </ul>
+    <?php if ($latestNoPick && $currentChallengerStatus): ?>
+      <div class="current-challenger-state <?= $currentChallengerComplete ? 'complete' : 'limited' ?>">
+        <i></i><span><b>Current Qwen challenger: <?= htmlspecialchars($currentChallengerStatus) ?></b>
+          <?= $currentChallengerComplete
+              ? ($currentChallengerRequests > 0
+                  ? htmlspecialchars("{$currentChallengerRequests} independent stock reviews completed in this run.")
+                  : 'The current per-stock challenger completed normally.')
+              : htmlspecialchars((string) ($currentChallenger['reason']
+                    ?? 'The current challenger did not complete every independent stock review.')) ?></span>
+      </div>
+    <?php endif; ?>
   </section>
   <?php endif; ?>
 
@@ -138,7 +157,8 @@ $NAV_ACTIVE = 'dash';
         <span><?= $latestNoPick
             ? 'The newest run completed without a qualified pick.'
             : 'The newest run failed before publishing a qualified result.' ?>
-          This older result is preserved for review and cannot start a new campaign.</span></div>
+          This older result is preserved for review. An explicit historical Paper buy is available
+          when a slot is open; every current broker and portfolio guard is checked again.</span></div>
     <?php endif; ?>
     <div class="camp-head">
       <h2><?= $pickHistorical ? 'Previous qualified pick:' : 'AI pick of the day:' ?>
@@ -153,7 +173,9 @@ $NAV_ACTIVE = 'dash';
             $isQueued = !empty($queued[$tk]['APPROVE_BUY']);
             $analysis = $t['analysis'] ?? $t['reason'] ?? '';
             if ($isChosen && !empty($p['rationale'])) { $analysis = $p['rationale']; }
-            $sig = $t['signals'] ?? []; ?>
+            $sig = $t['signals'] ?? [];
+            $sig['historical_result'] = $pickHistorical;
+            $sig['latest_challenger_complete'] = $pickHistorical && $currentChallengerComplete; ?>
         <div class="tile pick-tile analysis-source selectable <?= $isChosen ? 'chosen selected' : '' ?>"
              data-ticker="<?= $tk ?>" role="button" tabindex="0"
              data-analysis="<?= htmlspecialchars($analysis) ?>"
@@ -167,9 +189,7 @@ $NAV_ACTIVE = 'dash';
               <?= htmlspecialchars($t['decision'] ?? 'PASS') ?> · <?= htmlspecialchars($t['confidence'] ?? '—') ?> confidence
             </span></div>
           <p class="muted small"><?= htmlspecialchars($t['reason']) ?></p>
-          <?php if ($pickHistorical): ?>
-            <button class="btn buybtn locked" disabled>Historical result — rerun before buying</button>
-          <?php elseif ($isRunning): ?>
+          <?php if ($isRunning): ?>
             <button class="btn buybtn locked" disabled><span class="lockdot"></span>
               Auto-trading active — manage it on Monitor</button>
           <?php elseif ($isQueued): ?>
@@ -181,8 +201,12 @@ $NAV_ACTIVE = 'dash';
           <?php else: ?>
             <button class="btn buybtn buy-choice" type="button" data-ticker="<?= $tk ?>"
                     data-name="<?= htmlspecialchars($names[$tk] ?? $tk) ?>"
+                    data-decision="<?= htmlspecialchars((string) ($t['decision'] ?? 'PASS')) ?>"
+                    data-historical="<?= $pickHistorical ? '1' : '0' ?>"
+                    data-analysis-time="<?= htmlspecialchars($analysisMinute) ?>"
+                    data-run-id="<?= htmlspecialchars($pickRunId) ?>"
                     data-price="<?= htmlspecialchars((string) ($sig['price'] ?? $candidatePrices[$tk] ?? '')) ?>">
-              Choose Paper or Live</button>
+              <?= $pickHistorical ? 'Review historical Paper buy' : 'Choose Paper or Live' ?></button>
           <?php endif; ?>
         </div>
       <?php endforeach; ?>
@@ -316,6 +340,8 @@ $NAV_ACTIVE = 'dash';
               $decision = strtoupper($r['decision'] ?? 'WATCH');
               $qwenVerdict = strtoupper($r['challenger']['effective_verdict'] ?? 'UNAVAILABLE');
               $qwenReason = $r['challenger']['reason'] ?? '';
+              $qwenHistoricalFailure = $pickHistorical
+                  && in_array($qwenVerdict, ['FAILED', 'UNAVAILABLE'], true);
               $qwenDisplayReason = $qwenReason;
               $qwenBrief = 'Provider diagnostic';
               if (preg_match('/HTTP\s+(\d+)/i', $qwenReason, $qwenHttp)) {
@@ -331,6 +357,8 @@ $NAV_ACTIVE = 'dash';
                   $qwenDisplayReason .= ' · Detailed Groq message was not retained for this historical result.';
               }
               $reviewSignals = [
+                'historical_result' => $pickHistorical,
+                'latest_challenger_complete' => $pickHistorical && $currentChallengerComplete,
                 'decision' => $decision,
                 'quant_score' => $r['quant_score'] ?? null,
                 'ai_due_diligence_score' => $r['due_diligence_score'] ?? null,
@@ -357,28 +385,31 @@ $NAV_ACTIVE = 'dash';
                 <span>Final <b><?= number_format((float) ($r['final_score'] ?? 0), 1) ?></b></span>
                 <span>Evidence <b><?= number_format((float) ($r['evidence_coverage_pct'] ?? 0), 0) ?>%</b></span>
                 <span>Confidence <b><?= htmlspecialchars($r['confidence'] ?? '—') ?></b></span>
-                <span>Qwen <b><?= htmlspecialchars($qwenVerdict) ?></b></span>
+                <span>Qwen <b><?= htmlspecialchars($qwenHistoricalFailure
+                    ? 'OLDER RUN ' . $qwenVerdict : $qwenVerdict) ?></b></span>
               </div>
               <p><?= htmlspecialchars($r['reason'] ?? '') ?></p>
               <?php if (in_array($qwenVerdict, ['FAILED', 'UNAVAILABLE'], true) && $qwenReason): ?>
                 <details class="qwen-alert">
                   <summary>
                     <span class="qwen-alert-mark" aria-hidden="true">!</span>
-                    <span><b>Qwen <?= strtolower(htmlspecialchars($qwenVerdict)) ?></b>
-                      <small><?= htmlspecialchars($qwenBrief) ?></small></span>
+                    <span><b><?= $qwenHistoricalFailure ? 'Earlier saved Qwen ' : 'Qwen ' ?><?= strtolower(htmlspecialchars($qwenVerdict)) ?></b>
+                      <small><?= htmlspecialchars(($qwenHistoricalFailure && $currentChallengerComplete)
+                          ? "Earlier saved failure - latest run's challenger completed"
+                          : $qwenBrief) ?></small></span>
                     <em>Full details</em>
                   </summary>
                   <div class="qwen-alert-body">
-                    <span>Groq returned this bounded diagnostic. No Qwen verdict was invented.</span>
+                    <span><?= $qwenHistoricalFailure
+                        ? 'This diagnostic belongs to the older saved analysis. It is retained for audit honesty and is not the current challenger status.'
+                        : 'Groq returned this bounded diagnostic. No Qwen verdict was invented.' ?></span>
                     <p><?= htmlspecialchars($qwenDisplayReason) ?></p>
                   </div>
                 </details>
               <?php endif; ?>
               <div class="dd-review-footer">
                 <span class="dd-review-action">View full analysis <b>↓</b></span>
-                <?php if ($pickHistorical): ?>
-                  <button class="dd-candidate-buy locked" type="button" disabled>Historical result</button>
-                <?php elseif (!empty($running[$reviewTicker])): ?>
+                <?php if (!empty($running[$reviewTicker])): ?>
                   <button class="dd-candidate-buy locked" type="button" disabled>Auto-trading active</button>
                 <?php elseif (!empty($queued[$reviewTicker]['APPROVE_BUY'])): ?>
                   <button class="dd-candidate-buy locked" type="button" disabled>Paper order queued</button>
@@ -394,8 +425,13 @@ $NAV_ACTIVE = 'dash';
                           data-ticker="<?= $reviewTickerHtml ?>"
                           data-name="<?= htmlspecialchars($names[$reviewTicker] ?? $reviewTicker) ?>"
                           data-decision="<?= htmlspecialchars($decision) ?>"
+                          data-historical="<?= $pickHistorical ? '1' : '0' ?>"
+                          data-analysis-time="<?= htmlspecialchars($analysisMinute) ?>"
+                          data-run-id="<?= htmlspecialchars($pickRunId) ?>"
                           data-price="<?= htmlspecialchars((string) ($candidatePrices[$reviewTicker] ?? '')) ?>">
-                    <?= $decision === 'WATCH' ? 'Review WATCH buy' : 'Choose buy mode' ?></button>
+                    <?= $pickHistorical
+                        ? ($decision === 'WATCH' ? 'Review historical WATCH buy' : 'Review historical Paper buy')
+                        : ($decision === 'WATCH' ? 'Review WATCH buy' : 'Choose buy mode') ?></button>
                 <?php endif; ?>
               </div>
             </div>
@@ -645,6 +681,8 @@ function renderPanel(card) {
   const sigHtml = Object.keys(label).map(k =>
       `<div class="sigcell"><span>${esc(label[k])}</span><b>${esc(fmtV(k, sig[k]))}</b></div>`).join('');
   const qwenReason = String(sig.challenger_reason || '').trim();
+  const historicalQwen = Boolean(sig.historical_result);
+  const latestChallengerComplete = Boolean(sig.latest_challenger_complete);
   let qwenHtml = '';
   if (qwenReason) {
     const http = qwenReason.match(/HTTP\s+(\d+)/i);
@@ -654,9 +692,9 @@ function renderPanel(card) {
       : `${http ? `HTTP ${http[1]}` : 'Provider response'}${limited ? ' - Token limit exceeded' : ''}`;
     qwenHtml = `<details class="qwen-alert qwen-panel-alert"><summary>` +
       `<span class="qwen-alert-mark" aria-hidden="true">!</span>` +
-      `<span><b>Qwen review - ${esc(String(sig.challenger_verdict || sig.challenger_status || 'Unavailable'))}</b>` +
-      `<small>${esc(brief)}</small></span><em>Full details</em></summary>` +
-      `<div class="qwen-alert-body"><span>Complete bounded challenger diagnostic</span>` +
+      `<span><b>${historicalQwen ? 'Earlier saved Qwen review' : 'Qwen review'} - ${esc(String(sig.challenger_verdict || sig.challenger_status || 'Unavailable'))}</b>` +
+      `<small>${esc(historicalQwen && latestChallengerComplete ? "Earlier saved failure - latest run's challenger completed" : brief)}</small></span><em>Full details</em></summary>` +
+      `<div class="qwen-alert-body"><span>${historicalQwen ? 'Saved historical diagnostic - retained for audit honesty' : 'Complete bounded challenger diagnostic'}</span>` +
       `<p>${esc(qwenReason)}</p></div></details>`;
   }
   const basis = card.dataset.basis
@@ -828,7 +866,8 @@ const purchaseNotice = document.getElementById('purchaseModeNotice');
 const purchaseConfirm = document.getElementById('purchaseModeConfirm');
 const purchasePaper = document.getElementById('purchasePaperChoice');
 const purchaseLive = document.getElementById('purchaseLiveChoice');
-let purchaseState = {ticker:'', name:'', price:'', decision:'PASS', mode:'paper', trigger:null};
+let purchaseState = {ticker:'', name:'', price:'', decision:'PASS', historical:false,
+  analysisTime:'', runId:'', mode:'paper', trigger:null};
 
 function selectPurchaseMode(mode) {
   purchaseState.mode = mode;
@@ -839,13 +878,17 @@ function selectPurchaseMode(mode) {
   });
   const live = mode === 'live';
   const watchOverride = purchaseState.decision === 'WATCH';
+  const historicalOverride = purchaseState.historical;
   purchaseNotice.className = `purchase-notice ${live ? 'live' : 'paper'}`;
   purchaseNotice.textContent = live
     ? 'Live production is intentionally locked. This platform has no isolated live campaign ledger or authenticated live-order queue yet, so no real-money order can be sent from this modal.'
+    : historicalOverride
+      ? `This is an explicit historical Paper approval for ${purchaseState.ticker}, based on the saved ${purchaseState.decision} review from ${purchaseState.analysisTime || 'an earlier run'}. The engine does not trust its old price: it rechecks the current Moomoo price, market hours, campaign slots, budget, sector concentration, correlation, spread, and duplicate orders before any order.`
     : watchOverride
       ? `WATCH means unresolved evidence or risk remains. Your confirmation is an explicit manual Paper override for ${purchaseState.ticker}; the engine still rechecks market hours, campaign slots, budget, correlation, spread, and current Moomoo prices before ordering.`
       : `Paper confirmation queues ${purchaseState.ticker} for the running Moomoo simulated-account engine. The engine rechecks market hours, campaign slots, budget, correlation, spread, and current broker prices before ordering.`;
   purchaseConfirm.textContent = live ? 'Open Live Preparation'
+    : historicalOverride ? 'Confirm Historical Paper Buy'
     : watchOverride ? 'Confirm WATCH Paper Buy' : 'Queue Paper Buy';
   purchaseConfirm.classList.toggle('danger', live);
 }
@@ -861,8 +904,12 @@ function openPurchaseMode(btn) {
   if (!purchaseBack) return;
   purchaseState = {ticker:btn.dataset.ticker || '', name:btn.dataset.name || '',
                    price:btn.dataset.price || '', decision:btn.dataset.decision || 'PASS',
+                   historical:btn.dataset.historical === '1',
+                   analysisTime:btn.dataset.analysisTime || '', runId:btn.dataset.runId || '',
                    mode:'paper', trigger:btn};
-  document.getElementById('purchaseModeTitle').textContent = purchaseState.decision === 'WATCH'
+  document.getElementById('purchaseModeTitle').textContent = purchaseState.historical
+    ? `Review historical candidate ${purchaseState.ticker}`
+    : purchaseState.decision === 'WATCH'
     ? `Review WATCH candidate ${purchaseState.ticker}` : `Buy ${purchaseState.ticker}?`;
   const shownPrice = purchaseState.price && Number.isFinite(Number(purchaseState.price))
     ? `$${Number(purchaseState.price).toFixed(2)}` : 'Verified again at order time';
@@ -870,7 +917,7 @@ function openPurchaseMode(btn) {
     ['Company', purchaseState.name || purchaseState.ticker],
     ['Review status', purchaseState.decision],
     ['First tranche', `${TRANCHE} shares`],
-    ['Analysis price', shownPrice]
+    [purchaseState.historical ? 'Historical price' : 'Analysis price', shownPrice]
   ].map(([label,value]) => `<span><small>${esc(label)}</small><b>${esc(value)}</b></span>`).join('');
   selectPurchaseMode('paper');
   purchaseBack.classList.add('open');
@@ -911,7 +958,10 @@ purchaseConfirm?.addEventListener('click', async () => {
   purchaseConfirm.disabled = true;
   purchaseConfirm.textContent = 'Queuing safely…';
   try {
-    if (await queueCommand('APPROVE_BUY', purchaseState.ticker, CSRF)) {
+    if (await queueCommand('APPROVE_BUY', purchaseState.ticker, CSRF, {
+      analysis_source: purchaseState.historical ? 'historical' : 'current',
+      analysis_run_id: purchaseState.runId
+    })) {
       lockCandidatePurchase(purchaseState.ticker);
       closePurchaseMode();
     } else {

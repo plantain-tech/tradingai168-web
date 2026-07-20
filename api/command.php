@@ -42,7 +42,14 @@ if (!in_array($action, ['APPROVE_BUY', 'APPROVE_DCA', 'HOLD_DCA',
                         'RUN_ANALYSIS'], true) || !$ticker) {
     http_response_code(400); echo '{"error":"bad command"}'; exit;
 }
+$analysisSource = (($b['analysis_source'] ?? '') === 'historical') ? 'historical' : 'current';
+$analysisRunId = preg_match('/^analysis-[a-zA-Z0-9-]{12,80}$/',
+    (string) ($b['analysis_run_id'] ?? '')) ? (string) $b['analysis_run_id'] : '';
 $note = 'one-click from dashboard by ' . $_SESSION['email'];
+if ($action === 'APPROVE_BUY') {
+    $note .= ';analysis_source=' . $analysisSource;
+    if ($analysisRunId !== '') { $note .= ';analysis_run_id=' . $analysisRunId; }
+}
 $runId = null;
 if ($action === 'RUN_ANALYSIS') {
     $currentStatus = doc_get('analysis_status');
