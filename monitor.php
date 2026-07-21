@@ -26,7 +26,7 @@ $NAV_ACTIVE = 'auto-paper';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI Auto Trade · Paper — Trading AI Horizon</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=41">
+<link rel="stylesheet" href="assets/css/app.css?v=42">
 </head>
 <body>
 <div class="bg"></div>
@@ -78,6 +78,7 @@ let PENDING = <?= json_encode($pending) ?>;
 let MARKS = <?= json_encode($marks) ?>;
 let ENGINE_HEALTH = <?= json_encode($engineHealth) ?>;
 const MARK_STALE_MS = 35000;
+const ORDER_NOTICE_STORAGE = 'trading-ai-order-remainder-notices-v1';
 let PORTFOLIO = null;
 const grid = document.getElementById('monGrid');
 const fmt = (n, d = 2) => Number(n || 0).toLocaleString('en-US',
@@ -97,6 +98,54 @@ const dateLabel = s => {
 const esc = value => String(value ?? '').replace(/[&<>'"]/g, ch => ({
   '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;'
 })[ch]);
+
+function seenOrderNotices() {
+  try {
+    const value = JSON.parse(localStorage.getItem(ORDER_NOTICE_STORAGE) || '[]');
+    return new Set(Array.isArray(value) ? value.slice(-100) : []);
+  } catch (_) { return new Set(); }
+}
+
+function rememberOrderNotice(id, seen) {
+  seen.add(id);
+  try { localStorage.setItem(ORDER_NOTICE_STORAGE, JSON.stringify([...seen].slice(-100))); }
+  catch (_) { /* private browsing may disable storage; the notice still works */ }
+}
+
+function maybeShowRemainderNotice() {
+  if (_mb.classList.contains('open')) return;
+  const seen = seenOrderNotices();
+  const notices = [];
+  for (const campaign of CAMPS) {
+    for (const order of (Array.isArray(campaign.orders) ? campaign.orders : [])) {
+      if (order?.show_remainder_notice !== true || order?.no_order_working !== true
+          || order?.remainder_cancelled !== true) continue;
+      const id = String(order.intent_id || `${campaign.ticker}:${order.time}:${order.side}`);
+      if (!seen.has(id)) notices.push({campaign, order, id});
+    }
+  }
+  notices.sort((a, b) => String(a.order.completed_at || a.order.time || '')
+    .localeCompare(String(b.order.completed_at || b.order.time || '')));
+  const item = notices.at(-1);
+  if (!item) return;
+  rememberOrderNotice(item.id, seen);
+  const {campaign, order} = item;
+  const requested = Number(order.qty || 0);
+  const filled = Number(order.filled_qty || 0);
+  const cancelled = Number(order.unfilled_qty || 0);
+  const action = String(order.side || 'order').toUpperCase();
+  tradeModal({
+    title: `${campaign.ticker} order completed safely`, icon: '✓', notice: true,
+    tone: 'order-result-notice', okLabel: 'Acknowledge',
+    rows: [['Order', `${action} ${fmt(requested, Number.isInteger(requested) ? 0 : 2)} shares`],
+           ['Filled', `${fmt(filled, Number.isInteger(filled) ? 0 : 2)} shares`],
+           ['Cancelled remainder', `${fmt(cancelled, Number.isInteger(cancelled) ? 0 : 2)} shares`],
+           ['Working orders', 'None'],
+           ['Completed', order.completed_at || order.time || 'Just now']],
+    note: 'Moomoo accepted cancellation of the unfilled remainder. The engine left no remainder working; review the confirmed fill before your next decision.',
+    onConfirm: async () => { setTimeout(maybeShowRemainderNotice, 320); }
+  });
+}
 
 function historyEventView(event) {
   const status = String(event.status || 'RECORDED').toUpperCase();
@@ -466,6 +515,7 @@ async function syncCampaigns() {
       renderBrokerMarks();
       renderPortfolioSummary();
       renderEngineHealth();
+      maybeShowRemainderNotice();
     }
   } catch (e) { /* offline — keep last */ }
 }
@@ -678,6 +728,7 @@ renderAll(true);
 renderBrokerMarks();
 renderPortfolioSummary();
 renderEngineHealth();
+maybeShowRemainderNotice();
 setInterval(liveQuotes, 10000);
 setInterval(syncCampaigns, 10000);
 setInterval(renderPortfolioSummary, 10000);

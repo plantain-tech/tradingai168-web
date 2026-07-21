@@ -48,6 +48,8 @@ $dashboardSource = file_get_contents(__DIR__ . '/../index.php');
 $commandSource = file_get_contents(__DIR__ . '/../api/command.php');
 $modalSource = file_get_contents(__DIR__ . '/../inc/modal.php');
 $monitorSource = file_get_contents(__DIR__ . '/../monitor.php');
+$settingsSource = file_get_contents(__DIR__ . '/../settings.php');
+$styleSource = file_get_contents(__DIR__ . '/../assets/css/app.css');
 expect_true(strpos($dashboardSource, 'data-historical="<?= $pickHistorical ? \'1\' : \'0\' ?>"') !== false,
             'historical PASS and WATCH candidates carry an explicit purchase source');
 expect_true(strpos($dashboardSource, 'Historical result — rerun before buying') === false,
@@ -71,5 +73,15 @@ expect_true(strpos($monitorSource, 'dca-qty-input') !== false
 expect_true(strpos($monitorSource, 'Moomoo analyst high target') !== false
             && strpos($monitorSource, 'sell-alert level') !== false,
             'Monitor presents the broker forecast high and configured selling-alert level');
+expect_true(strpos($settingsSource, 'forecast_alert_open_minutes') !== false
+            && strpos($settingsSource, 'forecast_alert_closed_hours') !== false
+            && strpos($settingsSource, 'campaign_tick_hours') !== false,
+            'Settings exposes both forecast-alert cadences and the campaign deep-review cadence');
+expect_true(strpos($monitorSource, 'show_remainder_notice') !== false
+            && strpos($monitorSource, 'Cancelled remainder') !== false
+            && strpos($monitorSource, "['Working orders', 'None']") !== false
+            && strpos($modalSource, 'tone ?') !== false
+            && strpos($styleSource, '.modal.order-result-notice') !== false,
+            'Monitor detects broker-confirmed cancelled remainders for the shared result modal');
 
 echo "Analysis run web contracts verified.\n";

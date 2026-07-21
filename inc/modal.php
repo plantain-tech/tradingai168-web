@@ -1,7 +1,7 @@
 <?php if (!defined('APP')) { http_response_code(403); exit('Forbidden'); } ?>
 <!-- Shared trade-confirmation modal + one-click wiring -->
 <div class="modal-back" id="modalBack" aria-hidden="true">
-  <div class="modal" role="dialog" aria-modal="true">
+  <div class="modal" id="modalDialog" role="dialog" aria-modal="true">
     <div class="modal-icon" id="modalIcon">⚡</div>
     <h3 id="modalTitle">Confirm</h3>
     <div class="modal-rows" id="modalRows"></div>
@@ -14,21 +14,30 @@
 </div>
 <script>
 const _mb = document.getElementById('modalBack');
-function tradeModal({title, icon, rows, note, okLabel, danger, onConfirm}) {
+function tradeModal({title, icon, rows, note, okLabel, danger, notice, tone, onConfirm}) {
   document.getElementById('modalTitle').textContent = title;
   document.getElementById('modalIcon').textContent = icon || '⚡';
   document.getElementById('modalNote').textContent = note || '';
+  const dialog = document.getElementById('modalDialog');
+  dialog.className = 'modal' + (tone ? ` ${tone}` : '');
   const ok = document.getElementById('modalOk');
+  const cancel = document.getElementById('modalCancel');
   ok.textContent = okLabel || 'Confirm';
   ok.classList.toggle('danger', !!danger);
+  cancel.hidden = !!notice;
   document.getElementById('modalRows').innerHTML =
     rows.map(([k, v]) => `<div class="mrow"><span>${k}</span><b>${v}</b></div>`).join('');
   _mb.classList.add('open');
-  const close = () => _mb.classList.remove('open');
-  document.getElementById('modalCancel').onclick = close;
+  _mb.setAttribute('aria-hidden', 'false');
+  const close = () => {
+    _mb.classList.remove('open');
+    _mb.setAttribute('aria-hidden', 'true');
+  };
+  cancel.onclick = close;
   _mb.onclick = e => { if (e.target === _mb) close(); };
   ok.onclick = async () => { ok.disabled = true; ok.textContent = 'Working…';
-    try { await onConfirm(); } finally { ok.disabled = false; close(); } };
+    try { if (typeof onConfirm === 'function') await onConfirm(); }
+    finally { ok.disabled = false; close(); } };
 }
 function lockButton(btn, hint) {
   btn.disabled = true;

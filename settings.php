@@ -36,6 +36,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'portfolio_profit_alert_usd' => max(1, $f('portfolio_profit_alert_usd', 500)),
             'portfolio_return_alert_pct' => max(0.01, $f('portfolio_return_alert_pct', 9) / 100.0),
             'forecast_high_alert_ratio' => max(0.50, min(1.0, $f('forecast_high_alert_ratio', 90) / 100.0)),
+            'forecast_alert_open_minutes' => max(1, min(1440, $f('forecast_alert_open_minutes', 30))),
+            'forecast_alert_closed_hours' => max(0.25, min(168, $f('forecast_alert_closed_hours', 4))),
+            'campaign_tick_hours' => max(0.25, min(24, $f('campaign_tick_hours', 4))),
         ];
         if ($s['loss_urgent_usd'] < $s['loss_alert_usd']) {
             $err = 'Urgent loss level must be >= the alert level.';
@@ -79,7 +82,7 @@ $token = api_token();
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Settings — Trading AI Horizon</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=41">
+<link rel="stylesheet" href="assets/css/app.css?v=42">
 </head>
 <body>
 <div class="bg"></div>
@@ -152,13 +155,25 @@ $token = api_token();
       <div><label>Moomoo forecast-high selling alert (%)</label>
         <input class="in" name="forecast_high_alert_ratio" type="number" min="50" max="100" step="1"
                value="<?= round(($s['forecast_high_alert_ratio'] ?? 0.90) * 100, 2) ?>"></div>
+      <div><label>Forecast alert check - market open (minutes)</label>
+        <input class="in" name="forecast_alert_open_minutes" type="number" min="1" max="1440" step="1"
+               value="<?= $s['forecast_alert_open_minutes'] ?? 30 ?>"></div>
+      <div><label>Forecast alert check - market closed (hours)</label>
+        <input class="in" name="forecast_alert_closed_hours" type="number" min="0.25" max="168" step="0.25"
+               value="<?= $s['forecast_alert_closed_hours'] ?? 4 ?>"></div>
+      <div><label>Campaign deep-review interval (hours)</label>
+        <input class="in" name="campaign_tick_hours" type="number" min="0.25" max="24" step="0.25"
+               value="<?= $s['campaign_tick_hours'] ?? 4 ?>"></div>
       <div class="full"><button class="btn">Save trading settings</button></div>
       <p class="muted small full" style="margin:0">Progressive sizing reduces each later tranche.
         Adaptive recovery retains base ± step, but a larger below-cost tranche is allowed only after
         the complete quantitative, GPT-OSS, Qwen and attention review passes. The proposed share
         quantity starts from this sizing rule, remains adjustable at the checkpoint, and every DCA
         purchase still requires your KEEP BUYING click. The forecast-high percentage sends a
-        Moomoo-sourced selling reminder only; it never sells automatically.</p>
+        Moomoo-sourced selling reminder only; it never sells automatically. Forecast checks use
+        separate market-open and market-closed intervals while live Moomoo prices continue to
+        refresh normally. The campaign deep-review interval controls the lightweight campaign
+        profit, risk and schedule tick during regular market hours.</p>
     </form>
   </section>
 

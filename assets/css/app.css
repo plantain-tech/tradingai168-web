@@ -189,6 +189,23 @@ select.in option{background:#12172a; color:var(--ink)}
 .modal-btns{display:flex; gap:10px; margin-top:14px}
 .modal-btns .btn{margin-top:0}
 #modalOk.danger{background:linear-gradient(100deg,#ef4444,#f59e0b)}
+.modal.order-result-notice{position:relative;overflow:hidden;border-color:rgba(52,211,153,.42);
+  background:linear-gradient(150deg,#12172a 0%,#101d28 62%,#0d2024 100%);
+  box-shadow:0 28px 80px rgba(0,0,0,.56),0 0 44px rgba(52,211,153,.10)}
+.modal.order-result-notice:before{content:'';position:absolute;inset:-45% -20% auto;height:190px;
+  background:radial-gradient(circle,rgba(34,211,238,.19),transparent 67%);pointer-events:none;
+  animation:order-result-aura 3.2s ease-in-out infinite alternate}
+.modal.order-result-notice>*{position:relative}.modal.order-result-notice .modal-icon{display:grid;
+  place-items:center;width:58px;height:58px;margin:0 auto 12px;border:1px solid rgba(52,211,153,.4);
+  border-radius:18px;color:#6ee7b7;background:rgba(52,211,153,.10);font-size:28px;
+  box-shadow:0 0 0 8px rgba(52,211,153,.035),0 0 25px rgba(52,211,153,.14);
+  animation:order-result-check .55s cubic-bezier(.2,.9,.25,1.25) both}
+.modal.order-result-notice .modal-rows{border-color:rgba(52,211,153,.16);background:rgba(2,10,18,.24)}
+.modal.order-result-notice .mrow b{color:#d1fae5}.modal.order-result-notice #modalNote{line-height:1.55}
+.modal.order-result-notice #modalOk{background:linear-gradient(105deg,#10b981,#22d3ee);color:#041016}
+@keyframes order-result-check{from{opacity:0;transform:scale(.55) rotate(-12deg)}to{opacity:1;transform:none}}
+@keyframes order-result-aura{from{transform:translateX(-8%) scale(.92)}to{transform:translateX(8%) scale(1.08)}}
+@media(prefers-reduced-motion:reduce){.modal.order-result-notice:before,.modal.order-result-notice .modal-icon{animation:none}}
 
 /* ---- Dashboard purchase-mode decision ---- */
 .purchase-dialog{position:relative;padding:25px;border:1px solid rgba(99,102,241,.34);
