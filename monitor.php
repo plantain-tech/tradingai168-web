@@ -26,7 +26,7 @@ $NAV_ACTIVE = 'auto-paper';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI Auto Trade · Paper — Trading AI Horizon</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=39">
+<link rel="stylesheet" href="assets/css/app.css?v=41">
 </head>
 <body>
 <div class="bg"></div>
@@ -150,6 +150,34 @@ function dcaHistory(c) {
   </div>`;
 }
 
+function dcaAiReview(c) {
+  const r = c.dca_ai_review || c.dca_gate?.ai_review || {};
+  if (!c.dca_due && !r.status) return '';
+  const status = String(r.status || 'missing').toLowerCase();
+  const tone = status === 'completed' && r.eligible ? 'pass'
+    : status === 'running' ? 'running' : 'blocked';
+  const title = status === 'running' ? 'Full checkpoint reevaluation running'
+    : status === 'completed' ? (r.eligible ? 'Full reevaluation qualified' : 'Full reevaluation did not qualify')
+    : status === 'failed' ? 'Full reevaluation failed safely' : 'Full reevaluation required';
+  const quant = Number.isFinite(Number(r.quant_score)) ? Number(r.quant_score).toFixed(1) : '—';
+  const minimum = Number.isFinite(Number(r.minimum_quant_score)) ? Number(r.minimum_quant_score).toFixed(0) : '50';
+  const attention = r.attention || {};
+  const reasons = Array.isArray(r.block_reasons) ? r.block_reasons : [];
+  return `<div class="dca-ai-review tone-${tone}">
+    <div class="dca-ai-review-head"><div><span>AI checkpoint evidence</span><b>${esc(title)}</b></div>
+      <em>${status === 'running' ? '<i></i> In progress' : esc(status.replaceAll('_',' '))}</em></div>
+    <div class="dca-ai-metrics">
+      <span><small>Quant score</small><b>${quant} <i>/ ${minimum} minimum</i></b></span>
+      <span><small>GPT-OSS</small><b>${esc(r.decision || 'Pending')}</b></span>
+      <span><small>Qwen challenge</small><b>${esc(r.challenger_verdict || r.challenger_status || 'Pending')}</b></span>
+      <span><small>14-day attention</small><b>${r.social_complete ? 'Complete' : 'Pending / incomplete'}</b></span>
+    </div>
+    ${attention.open_attention_state || attention.youtube_trend_state ? `<p>Open Attention: <b>${esc(attention.open_attention_state || '—')}</b>
+      · YouTube: <b>${esc(attention.youtube_trend_state || attention.youtube_status || '—')}</b></p>` : ''}
+    ${reasons.length ? `<details><summary>Why buying is blocked</summary><ul>${reasons.slice(0,8).map(x => `<li>${esc(x)}</li>`).join('')}</ul></details>` : ''}
+  </div>`;
+}
+
 function dcaPanel(c) {
   if (!(c.qty > 0)) return '';
   const t = c.ticker, due = !!c.dca_due, gate = c.dca_gate || {};
@@ -168,11 +196,16 @@ function dcaPanel(c) {
         ${approvePending ? 'KEEP BUYING queued — engine revalidating' : 'HOLD queued — rescheduling'}</button>`;
     } else {
       controls = `<div class="dca-actions">
-        <button class="dca-choice dca-keep dca-buy-click" data-ticker="${t}"
-          ${eligible && proposed > 0 ? '' : 'disabled'}>
-          <span>Keep buying</span><b>${eligible && proposed > 0
-            ? (riskPaused ? `Explicit override · ${proposed} shares` : proposed + ' shares')
-            : 'Momentum gate blocked'}</b></button>
+        <div class="dca-buy-control ${eligible && proposed > 0 ? '' : 'is-disabled'}">
+          <label for="dca-qty-${t}"><span>Shares to buy</span>
+            <input id="dca-qty-${t}" class="dca-qty-input" type="number" inputmode="numeric"
+              min="1" step="1" value="${Math.max(1, proposed)}" ${eligible && proposed > 0 ? '' : 'disabled'}>
+            <small>Recommended ${proposed || '—'} · adjustable by you</small></label>
+          <button class="dca-choice dca-keep dca-buy-click" data-ticker="${t}"
+            ${eligible && proposed > 0 ? '' : 'disabled'}>
+            <span>Keep buying</span><b>${eligible && proposed > 0
+              ? (riskPaused ? 'Explicit approval required' : 'Approve this checkpoint only')
+              : 'Full momentum review blocked'}</b></button></div>
         <button class="dca-choice dca-hold dca-hold-click" data-ticker="${t}">
           <span>Hold</span><b>No order · review later</b></button></div>`;
     }
@@ -201,7 +234,7 @@ function dcaPanel(c) {
       <span>Status <b>${String(c.dca_status || 'SCHEDULED').replaceAll('_',' ')}</b></span>
       ${c.last_dca_decision ? `<span>Last choice <b>${String(c.last_dca_decision).replaceAll('_',' ')}</b></span>` : ''}</div>
     ${reasons ? `<p class="dca-reason">${esc(reasons)}</p>` : ''}
-    ${dcaHistory(c)}${controls}</section>`;
+    ${dcaAiReview(c)}${dcaHistory(c)}${controls}</section>`;
 }
 
 function renderEngineHealth() {
@@ -345,6 +378,7 @@ function cardHTML(c) {
       <div class="tile"><span>Total value</span><b class="live-val" data-t="${t}">—</b></div>
       <div class="tile"><span>Status</span><b>${c.status || ''}</b></div>
     </div>
+    <div class="forecast-watch" data-ticker="${t}" hidden></div>
     ${dcaPanel(c)}
     ${btn}
     <p class="muted small" style="margin-top:8px">engine sync: ${c.updated_at || '—'} · ${LIMITS}</p>`;
@@ -445,12 +479,14 @@ function renderBrokerMarks() {
     const plEl = el.querySelector('.live-pl');
     const pp = el.querySelector('.live-plpct');
     const value = el.querySelector('.live-val');
+    const forecast = el.querySelector('.forecast-watch');
     if (!live.ok) {
       px.textContent = '—';
       chg.textContent = live.reason;
       plEl.textContent = '—'; plEl.className = 'live-pl bad';
       pp.textContent = 'Moomoo feed required'; pp.className = 'live-plpct bad';
       value.textContent = '—';
+      if (forecast) forecast.hidden = true;
       note.textContent = live.reason + ' · ' + LIMITS;
       continue;
     }
@@ -472,6 +508,16 @@ function renderBrokerMarks() {
     pp.textContent = (plp >= 0 ? '+' : '') + plp.toFixed(2) + '%';
     pp.className = 'live-plpct ' + (plp >= 0 ? 'ok' : 'bad');
     value.textContent = '$' + fmt(q.value);
+    const af = q.analyst_forecast || {};
+    if (forecast && Number(af.highest) > 0) {
+      const reached = af.reached === true;
+      forecast.hidden = false;
+      forecast.className = 'forecast-watch' + (reached ? ' reached' : '');
+      forecast.innerHTML = `<div><span>Moomoo analyst high target</span><b>$${fmt(Number(af.highest))}</b></div>
+        <div><span>${Math.round(Number(af.alert_ratio || .9) * 100)}% sell-alert level</span><b>$${fmt(Number(af.alert_price))}</b></div>
+        <p>${reached ? 'Alert reached — your sell decision is required' : `${Number(af.distance_pct || 0).toFixed(2)}% to alert`}
+          · ${Number(af.analyst_count || 0)} analysts · updated ${esc(af.updated_date || '—')}</p>`;
+    } else if (forecast) { forecast.hidden = true; }
     const bar = el.querySelector('.plbar-fill');
     bar.style.width = Math.min(100, Math.max(2, (plp / TARGET_PCT) * 100)) + '%';
     bar.className = 'plbar-fill ' + (plp >= 0 ? 'up' : 'dn');
@@ -538,17 +584,23 @@ grid.addEventListener('click', e => {
   const dcaHold = e.target.closest('.dca-hold-click');
   if (dcaBuy) {
     const t = dcaBuy.dataset.ticker, c = cardEls[t]?.data || {};
+    const quantityInput = dcaBuy.closest('.dca-panel')?.querySelector('.dca-qty-input');
+    const quantity = Number.parseInt(quantityInput?.value || '', 10);
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      alert('Enter a whole number of shares greater than zero.'); return;
+    }
     tradeModal({
       title: `Keep buying ${t}?`, icon: '↗',
       rows: [['Campaign created', dateLabel(c.campaign_created)],
              ['DCA checkpoint', dateLabel(c.next_dca_date)],
-             ['Proposed tranche', `${c.dca_proposed_qty || 0} shares`],
+             ['Your selected tranche', `${quantity} shares`],
+             ['Engine recommendation', `${c.dca_proposed_qty || 0} shares`],
              ['Sizing', c.dca_sizing_mode === 'adaptive_recovery' ? 'Adaptive recovery' : 'Progressive strength'],
              ['Authorization', 'This checkpoint only']],
       note: 'The PC engine re-checks momentum, earnings timing, drawdown, budget, spread and Moomoo price before placing one bounded Paper order. If any gate fails, no order is sent.',
       okLabel: `Confirm KEEP BUYING ${t}`,
       onConfirm: async () => {
-        if (await queueCommand('APPROVE_DCA', t, CSRF)) {
+        if (await queueCommand('APPROVE_DCA', t, CSRF, {quantity})) {
           PENDING.push({t, a: 'APPROVE_DCA'}); renderAll();
         } else { alert('Could not queue the DCA decision — try again.'); }
       }

@@ -47,6 +47,7 @@ expect_true(analysis_run_doc_key('../../unsafe') === null,
 $dashboardSource = file_get_contents(__DIR__ . '/../index.php');
 $commandSource = file_get_contents(__DIR__ . '/../api/command.php');
 $modalSource = file_get_contents(__DIR__ . '/../inc/modal.php');
+$monitorSource = file_get_contents(__DIR__ . '/../monitor.php');
 expect_true(strpos($dashboardSource, 'data-historical="<?= $pickHistorical ? \'1\' : \'0\' ?>"') !== false,
             'historical PASS and WATCH candidates carry an explicit purchase source');
 expect_true(strpos($dashboardSource, 'Historical result — rerun before buying') === false,
@@ -60,5 +61,15 @@ expect_true(strpos($commandSource, 'analysis_source=') !== false
             'historical buy approvals retain their analysis provenance in the command audit');
 expect_true(strpos($modalSource, '...metadata') !== false,
             'the shared authenticated command helper carries bounded provenance metadata');
+expect_true(strpos($commandSource, 'requested_qty=') !== false
+            && strpos($commandSource, "'min_range' => 1") !== false,
+            'DCA share quantity is authenticated and validated before queueing');
+expect_true(strpos($monitorSource, 'dca-qty-input') !== false
+            && strpos($monitorSource, "{quantity}") !== false
+            && strpos($monitorSource, 'AI checkpoint evidence') !== false,
+            'due checkpoints expose the adjustable quantity and complete evidence status');
+expect_true(strpos($monitorSource, 'Moomoo analyst high target') !== false
+            && strpos($monitorSource, 'sell-alert level') !== false,
+            'Monitor presents the broker forecast high and configured selling-alert level');
 
 echo "Analysis run web contracts verified.\n";

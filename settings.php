@@ -22,6 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                            ['progressive', 'adaptive_recovery'], true)
                                       ? $_POST['dca_sizing_mode'] : 'progressive',
             'dca_max_tranches' => max(2, min(8, (int) $f('dca_max_tranches', 4))),
+            'dca_min_quant_score' => max(0, min(100, $f('dca_min_quant_score', 50))),
             'dca_review_loss_pct' => max(0.01, min(0.50, $f('dca_review_loss_pct', 7) / 100.0)),
             'campaign_review_days' => max(30, min(365, (int) $f('campaign_review_days', 90))),
             'profit_alert_pct' => max(0.01, $f('profit_alert_pct', 9) / 100.0),
@@ -34,6 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'max_campaign_correlation' => max(0.20, min(0.99, $f('max_campaign_correlation', 0.80))),
             'portfolio_profit_alert_usd' => max(1, $f('portfolio_profit_alert_usd', 500)),
             'portfolio_return_alert_pct' => max(0.01, $f('portfolio_return_alert_pct', 9) / 100.0),
+            'forecast_high_alert_ratio' => max(0.50, min(1.0, $f('forecast_high_alert_ratio', 90) / 100.0)),
         ];
         if ($s['loss_urgent_usd'] < $s['loss_alert_usd']) {
             $err = 'Urgent loss level must be >= the alert level.';
@@ -77,7 +79,7 @@ $token = api_token();
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Settings — Trading AI Horizon</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=39">
+<link rel="stylesheet" href="assets/css/app.css?v=41">
 </head>
 <body>
 <div class="bg"></div>
@@ -111,6 +113,9 @@ $token = api_token();
       <div><label>Maximum tranches / campaign</label>
         <input class="in" name="dca_max_tranches" type="number" min="2" max="8"
                value="<?= $s['dca_max_tranches'] ?? 4 ?>"></div>
+      <div><label>Minimum checkpoint Quant score</label>
+        <input class="in" name="dca_min_quant_score" type="number" min="0" max="100" step="1"
+               value="<?= $s['dca_min_quant_score'] ?? 50 ?>"></div>
       <div><label>DCA review drawdown (%)</label>
         <input class="in" name="dca_review_loss_pct" type="number" step="0.5"
                value="<?= round(($s['dca_review_loss_pct'] ?? 0.07) * 100, 2) ?>"></div>
@@ -144,10 +149,16 @@ $token = api_token();
       <div><label>Portfolio return alert (%)</label>
         <input class="in" name="portfolio_return_alert_pct" type="number" step="0.5"
                value="<?= round(($s['portfolio_return_alert_pct'] ?? 0.09) * 100, 2) ?>"></div>
+      <div><label>Moomoo forecast-high selling alert (%)</label>
+        <input class="in" name="forecast_high_alert_ratio" type="number" min="50" max="100" step="1"
+               value="<?= round(($s['forecast_high_alert_ratio'] ?? 0.90) * 100, 2) ?>"></div>
       <div class="full"><button class="btn">Save trading settings</button></div>
       <p class="muted small full" style="margin:0">Progressive sizing reduces each later tranche.
         Adaptive recovery retains base ± step, but a larger below-cost tranche is allowed only after
-        the momentum recovery gate passes. Every DCA checkpoint still requires your KEEP BUYING click.</p>
+        the complete quantitative, GPT-OSS, Qwen and attention review passes. The proposed share
+        quantity starts from this sizing rule, remains adjustable at the checkpoint, and every DCA
+        purchase still requires your KEEP BUYING click. The forecast-high percentage sends a
+        Moomoo-sourced selling reminder only; it never sells automatically.</p>
     </form>
   </section>
 

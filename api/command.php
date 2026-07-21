@@ -46,6 +46,14 @@ $analysisSource = (($b['analysis_source'] ?? '') === 'historical') ? 'historical
 $analysisRunId = preg_match('/^analysis-[a-zA-Z0-9-]{12,80}$/',
     (string) ($b['analysis_run_id'] ?? '')) ? (string) $b['analysis_run_id'] : '';
 $note = 'one-click from dashboard by ' . $_SESSION['email'];
+if ($action === 'APPROVE_DCA') {
+    $quantity = filter_var($b['quantity'] ?? null, FILTER_VALIDATE_INT,
+        ['options' => ['min_range' => 1, 'max_range' => 10000]]);
+    if ($quantity === false) {
+        http_response_code(400); echo '{"error":"quantity must be a whole number from 1 to 10000"}'; exit;
+    }
+    $note .= ';requested_qty=' . $quantity;
+}
 if ($action === 'APPROVE_BUY') {
     $note .= ';analysis_source=' . $analysisSource;
     if ($analysisRunId !== '') { $note .= ';analysis_run_id=' . $analysisRunId; }
