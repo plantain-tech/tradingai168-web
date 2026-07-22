@@ -75,6 +75,16 @@ expect_true(strpos($commandSource, "'RUN_DCA_REVIEW'") !== false
             && strpos($monitorSource, 'dca-review-progress') !== false
             && strpos($styleSource, '@keyframes dca-progress-shimmer') !== false,
             'each due stock exposes authenticated manual research with animated progress');
+expect_true(strpos($monitorSource, 'Optional AI checkpoint evidence') !== false
+            && strpos($monitorSource, 'Not reached') !== false
+            && strpos($monitorSource, 'Why this optional review stopped') !== false
+            && strpos($monitorSource, 'Hard trading protection blocked') !== false,
+            'optional review failures are truthful and distinct from hard buying protections');
+expect_true(strpos($monitorSource, 'Earnings and expert outlook') !== false
+            && strpos($monitorSource, "expectation.buy_reference ? 'Buy reference'") !== false
+            && strpos($monitorSource, 'Reference only — never an automatic order') !== false
+            && strpos($styleSource, '.earnings-reference') !== false,
+            'checkpoint cards present attributable earnings evidence as a responsive reference');
 expect_true(strpos($monitorSource, 'Moomoo analyst high target') !== false
             && strpos($monitorSource, 'sell-alert level') !== false,
             'Monitor presents the broker forecast high and configured selling-alert level');

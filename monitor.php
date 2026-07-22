@@ -26,7 +26,7 @@ $NAV_ACTIVE = 'auto-paper';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI Auto Trade · Paper — Trading AI Horizon</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=43">
+<link rel="stylesheet" href="assets/css/app.css?v=44">
 </head>
 <body>
 <div class="bg"></div>
@@ -205,21 +205,30 @@ function dcaAiReview(c) {
   const status = String(r.status || 'missing').toLowerCase();
   const queued = pendingHas(c.ticker, 'RUN_DCA_REVIEW');
   const tone = status === 'completed' && r.eligible ? 'pass'
-    : status === 'running' ? 'running' : 'blocked';
-  const title = status === 'running' ? 'Full checkpoint reevaluation running'
-    : status === 'completed' ? (r.eligible ? 'Full reevaluation qualified' : 'Full reevaluation did not qualify')
-    : status === 'failed' ? 'Full reevaluation failed safely' : 'Full reevaluation required';
+    : status === 'running' ? 'running' : 'advisory';
+  const title = status === 'running' ? 'Optional checkpoint research running'
+    : status === 'completed' ? (r.eligible ? 'Positive reevaluation evidence' : 'Mixed or cautious reevaluation evidence')
+    : status === 'failed' ? 'Optional reevaluation unavailable' : 'Optional reevaluation available';
   const quant = Number.isFinite(Number(r.quant_score)) ? Number(r.quant_score).toFixed(1) : '—';
   const minimum = Number.isFinite(Number(r.minimum_quant_score)) ? Number(r.minimum_quant_score).toFixed(0) : '50';
   const attention = r.attention || {};
   const reasons = Array.isArray(r.block_reasons) ? r.block_reasons : [];
+  const expectation = r.earnings_expectation || {};
+  const positives = Array.isArray(expectation.positive_evidence) ? expectation.positive_evidence : [];
+  const cautions = Array.isArray(expectation.cautions) ? expectation.cautions : [];
+  const experts = Array.isArray(expectation.expert_evidence) ? expectation.expert_evidence : [];
+  const primaryState = String(r.primary_status || '').toLowerCase();
+  const challengerState = String(r.challenger_status || '').toLowerCase();
+  const providerLabel = (decision, state) => decision || (state === 'failed' ? 'Failed'
+    : state === 'running' ? 'Running' : state === 'completed' ? 'Completed' : 'Not reached');
+  const attentionStarted = Object.keys(attention).length > 0;
   const progress = status === 'running'
     ? Math.min(99, Math.max(2, Number(r.progress_percent || 4))) : (queued ? 2 : 0);
   const progressStage = queued && status !== 'running'
     ? 'Queued for the PC research worker' : String(r.progress_stage || 'Preparing evidence');
   const runLabel = status === 'completed' || status === 'failed' ? 'Run analysis again' : 'Start analysis';
   return `<div class="dca-ai-review tone-${tone}">
-    <div class="dca-ai-review-head"><div><span>AI checkpoint evidence</span><b>${esc(title)}</b></div>
+    <div class="dca-ai-review-head"><div><span>Optional AI checkpoint evidence</span><b>${esc(title)}</b></div>
       <em>${status === 'running' ? '<i></i> In progress' : esc(status.replaceAll('_',' '))}</em></div>
     <div class="dca-research-control ${status === 'running' || queued ? 'is-active' : ''}">
       <button type="button" class="dca-review-run" data-ticker="${esc(c.ticker)}"
@@ -232,17 +241,28 @@ function dcaAiReview(c) {
         aria-label="${esc(c.ticker)} checkpoint research" aria-valuemin="0" aria-valuemax="100"
         aria-valuenow="${progress}"><div><i style="width:${progress}%"></i></div>
         <span><i>${esc(progressStage)}</i><b>${progress}%</b></span></div>` :
-        `<p>Research may run before the market opens. Any purchase still waits for fresh Moomoo execution validation and your approval.</p>`}
+        `<p>This research is optional decision support. Any purchase still requires hard risk checks, fresh Moomoo execution validation, and your approval.</p>`}
     </div>
     <div class="dca-ai-metrics">
       <span><small>Quant score</small><b>${quant} <i>/ ${minimum} minimum</i></b></span>
-      <span><small>GPT-OSS</small><b>${esc(r.decision || 'Pending')}</b></span>
-      <span><small>Qwen challenge</small><b>${esc(r.challenger_verdict || r.challenger_status || 'Pending')}</b></span>
-      <span><small>14-day attention</small><b>${r.social_complete ? 'Complete' : 'Pending / incomplete'}</b></span>
+      <span><small>GPT-OSS</small><b>${esc(providerLabel(r.decision, primaryState))}</b></span>
+      <span><small>Qwen challenge</small><b>${esc(providerLabel(r.challenger_verdict, challengerState))}</b></span>
+      <span><small>14-day attention</small><b>${r.social_complete ? 'Complete' : (attentionStarted ? 'Partial evidence saved' : 'Not reached')}</b></span>
     </div>
     ${attention.open_attention_state || attention.youtube_trend_state ? `<p>Open Attention: <b>${esc(attention.open_attention_state || '—')}</b>
       · YouTube: <b>${esc(attention.youtube_trend_state || attention.youtube_status || '—')}</b></p>` : ''}
-    ${reasons.length ? `<details><summary>Why buying is blocked</summary><ul>${reasons.slice(0,8).map(x => `<li>${esc(x)}</li>`).join('')}</ul></details>` : ''}
+    ${expectation.label ? `<section class="earnings-reference tone-${String(expectation.state || 'mixed').toLowerCase()}">
+      <header><div><small>Earnings and expert outlook</small><b>${esc(expectation.label)}</b></div>
+        <span>${expectation.buy_reference ? 'Buy reference' : 'Optional reference'}</span></header>
+      <p>Analyst estimates, attributable financial reporting, Moomoo consensus, and source-qualified social attention. Reference only — never an automatic order.</p>
+      <div class="earnings-evidence-columns">
+        <div><strong>Positive evidence · ${positives.length}</strong>${positives.length ? `<ul>${positives.slice(0,6).map(x => `<li><b>${esc(x.label)}</b><span>${esc(x.value)} · ${esc(x.source)}</span>${x.why ? `<em>${esc(x.why)}</em>` : ''}</li>`).join('')}</ul>` : '<em>No positive estimate evidence was recorded.</em>'}</div>
+        <div><strong>Cautions · ${cautions.length}</strong>${cautions.length ? `<ul>${cautions.slice(0,6).map(x => `<li><b>${esc(x.label)}</b><span>${esc(x.value)} · ${esc(x.source)}</span>${x.why ? `<em>${esc(x.why)}</em>` : ''}</li>`).join('')}</ul>` : '<em>No quantified caution was recorded.</em>'}</div>
+      </div>
+      ${experts.length ? `<details><summary>View attributable news and expert evidence · ${experts.length}</summary><ul class="expert-evidence">${experts.slice(0,8).map(x => `<li><b>${esc(x.title)}</b><span>${esc(x.source)}${x.published_at ? ` · ${esc(x.published_at)}` : ''}</span></li>`).join('')}</ul></details>` : ''}
+    </section>` : ''}
+    ${r.error_reason ? `<details class="dca-review-error"><summary>Why this optional review stopped</summary><p><b>${esc(r.error_stage || 'checkpoint evidence worker')}</b> · ${esc(r.error_reason)}</p>${Array.isArray(r.error_hints) && r.error_hints.length ? `<ul>${r.error_hints.slice(0,6).map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}</details>` : ''}
+    ${reasons.length ? `<details><summary>AI findings and cautions · optional</summary><ul>${reasons.slice(0,8).map(x => `<li>${esc(x)}</li>`).join('')}</ul></details>` : ''}
   </div>`;
 }
 
@@ -257,6 +277,7 @@ function dcaPanel(c) {
   const mode = c.dca_sizing_mode === 'adaptive_recovery'
     ? 'Adaptive recovery · base ± step' : 'Progressive strength · recommended';
   const reasons = (gate.reasons || []).join(' · ');
+  const advisories = Array.isArray(gate.advisories) ? gate.advisories : [];
   let controls = '';
   if (due) {
     if (approvePending || holdPending) {
@@ -273,7 +294,7 @@ function dcaPanel(c) {
             ${eligible && proposed > 0 ? '' : 'disabled'}>
             <span>Keep buying</span><b>${eligible && proposed > 0
               ? (riskPaused ? 'Explicit approval required' : 'Approve this checkpoint only')
-              : 'Full momentum review blocked'}</b></button></div>
+              : 'Hard trading protection blocked'}</b></button></div>
         <button class="dca-choice dca-hold dca-hold-click" data-ticker="${t}">
           <span>Hold</span><b>No order · review later</b></button></div>`;
     }
@@ -301,7 +322,8 @@ function dcaPanel(c) {
       <span>Filled tranches <b>${c.tranche_count || 0} / ${c.max_tranches || '—'}</b></span>
       <span>Status <b>${String(c.dca_status || 'SCHEDULED').replaceAll('_',' ')}</b></span>
       ${c.last_dca_decision ? `<span>Last choice <b>${String(c.last_dca_decision).replaceAll('_',' ')}</b></span>` : ''}</div>
-    ${reasons ? `<p class="dca-reason">${esc(reasons)}</p>` : ''}
+    ${reasons ? `<p class="dca-reason"><b>Buying protection:</b> ${esc(reasons)}</p>` : ''}
+    ${advisories.length ? `<div class="dca-advisories"><b>Decision references</b><ul>${advisories.slice(0,8).map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
     ${dcaAiReview(c)}${dcaHistory(c)}${controls}</section>`;
 }
 

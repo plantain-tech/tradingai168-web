@@ -167,7 +167,9 @@ $token = api_token();
       <div class="full"><button class="btn">Save trading settings</button></div>
       <p class="muted small full" style="margin:0">Progressive sizing reduces each later tranche.
         Adaptive recovery retains base ± step, but a larger below-cost tranche is allowed only after
-        the complete quantitative, GPT-OSS, Qwen and attention review passes. The proposed share
+        deterministic price-recovery protections pass; a positive quantitative, GPT-OSS, Qwen and
+        attention review may confirm that recovery but is otherwise optional decision evidence.
+        Nearby earnings and sourced expert expectations are references, not order gates. The proposed share
         quantity starts from this sizing rule, remains adjustable at the checkpoint, and every DCA
         purchase still requires your KEEP BUYING click. The forecast-high percentage sends a
         Moomoo-sourced selling reminder only; it never sells automatically. Forecast checks use
