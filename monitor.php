@@ -26,7 +26,7 @@ $NAV_ACTIVE = 'auto-paper';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI Auto Trade · Paper — Trading AI Horizon</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=42">
+<link rel="stylesheet" href="assets/css/app.css?v=43">
 </head>
 <body>
 <div class="bg"></div>
@@ -203,6 +203,7 @@ function dcaAiReview(c) {
   const r = c.dca_ai_review || c.dca_gate?.ai_review || {};
   if (!c.dca_due && !r.status) return '';
   const status = String(r.status || 'missing').toLowerCase();
+  const queued = pendingHas(c.ticker, 'RUN_DCA_REVIEW');
   const tone = status === 'completed' && r.eligible ? 'pass'
     : status === 'running' ? 'running' : 'blocked';
   const title = status === 'running' ? 'Full checkpoint reevaluation running'
@@ -212,9 +213,27 @@ function dcaAiReview(c) {
   const minimum = Number.isFinite(Number(r.minimum_quant_score)) ? Number(r.minimum_quant_score).toFixed(0) : '50';
   const attention = r.attention || {};
   const reasons = Array.isArray(r.block_reasons) ? r.block_reasons : [];
+  const progress = status === 'running'
+    ? Math.min(99, Math.max(2, Number(r.progress_percent || 4))) : (queued ? 2 : 0);
+  const progressStage = queued && status !== 'running'
+    ? 'Queued for the PC research worker' : String(r.progress_stage || 'Preparing evidence');
+  const runLabel = status === 'completed' || status === 'failed' ? 'Run analysis again' : 'Start analysis';
   return `<div class="dca-ai-review tone-${tone}">
     <div class="dca-ai-review-head"><div><span>AI checkpoint evidence</span><b>${esc(title)}</b></div>
       <em>${status === 'running' ? '<i></i> In progress' : esc(status.replaceAll('_',' '))}</em></div>
+    <div class="dca-research-control ${status === 'running' || queued ? 'is-active' : ''}">
+      <button type="button" class="dca-review-run" data-ticker="${esc(c.ticker)}"
+        ${status === 'running' || queued ? 'disabled' : ''}>
+        <span class="dca-review-icon" aria-hidden="true">✦</span>
+        <span><b>${status === 'running' ? 'Analysis running' : (queued ? 'Analysis queued' : runLabel)}</b>
+          <small>Quant · GPT-OSS · Qwen · 14-day attention</small></span>
+      </button>
+      ${(status === 'running' || queued) ? `<div class="dca-review-progress" role="progressbar"
+        aria-label="${esc(c.ticker)} checkpoint research" aria-valuemin="0" aria-valuemax="100"
+        aria-valuenow="${progress}"><div><i style="width:${progress}%"></i></div>
+        <span><i>${esc(progressStage)}</i><b>${progress}%</b></span></div>` :
+        `<p>Research may run before the market opens. Any purchase still waits for fresh Moomoo execution validation and your approval.</p>`}
+    </div>
     <div class="dca-ai-metrics">
       <span><small>Quant score</small><b>${quant} <i>/ ${minimum} minimum</i></b></span>
       <span><small>GPT-OSS</small><b>${esc(r.decision || 'Pending')}</b></span>
@@ -632,7 +651,22 @@ grid.addEventListener('click', e => {
   const cancel = e.target.closest('.cancel-click');
   const dcaBuy = e.target.closest('.dca-buy-click');
   const dcaHold = e.target.closest('.dca-hold-click');
-  if (dcaBuy) {
+  const dcaReview = e.target.closest('.dca-review-run');
+  if (dcaReview) {
+    const t = dcaReview.dataset.ticker;
+    dcaReview.disabled = true;
+    dcaReview.classList.add('is-queueing');
+    queueCommand('RUN_DCA_REVIEW', t, CSRF).then(ok => {
+      if (ok) {
+        PENDING.push({t, a: 'RUN_DCA_REVIEW'});
+        renderAll();
+      } else {
+        dcaReview.disabled = false;
+        dcaReview.classList.remove('is-queueing');
+        alert('Could not queue the checkpoint analysis — try again.');
+      }
+    });
+  } else if (dcaBuy) {
     const t = dcaBuy.dataset.ticker, c = cardEls[t]?.data || {};
     const quantityInput = dcaBuy.closest('.dca-panel')?.querySelector('.dca-qty-input');
     const quantity = Number.parseInt(quantityInput?.value || '', 10);

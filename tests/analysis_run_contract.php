@@ -70,6 +70,11 @@ expect_true(strpos($monitorSource, 'dca-qty-input') !== false
             && strpos($monitorSource, "{quantity}") !== false
             && strpos($monitorSource, 'AI checkpoint evidence') !== false,
             'due checkpoints expose the adjustable quantity and complete evidence status');
+expect_true(strpos($commandSource, "'RUN_DCA_REVIEW'") !== false
+            && strpos($monitorSource, "queueCommand('RUN_DCA_REVIEW'") !== false
+            && strpos($monitorSource, 'dca-review-progress') !== false
+            && strpos($styleSource, '@keyframes dca-progress-shimmer') !== false,
+            'each due stock exposes authenticated manual research with animated progress');
 expect_true(strpos($monitorSource, 'Moomoo analyst high target') !== false
             && strpos($monitorSource, 'sell-alert level') !== false,
             'Monitor presents the broker forecast high and configured selling-alert level');
