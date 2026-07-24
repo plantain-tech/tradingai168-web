@@ -55,9 +55,10 @@ expect_true(strpos($dashboardSource, 'data-historical="<?= $pickHistorical ? \'1
 expect_true(strpos($dashboardSource, 'Historical result — rerun before buying') === false,
             'historical results are no longer unconditionally disabled');
 expect_true(strpos($dashboardSource, 'current-challenger-state') !== false
-            && strpos($dashboardSource, 'Earlier saved Qwen') !== false
-            && strpos($dashboardSource, "'OLDER RUN ' . \$qwenVerdict") !== false,
-            'current challenger health is separated from saved historical failures');
+            && strpos($dashboardSource, 'Historical Qwen diagnostic') !== false
+            && strpos($dashboardSource, "'HISTORICAL ONLY'") !== false
+            && strpos($styleSource, '.qwen-alert.historical-qwen') !== false,
+            'current challenger health is separated and historical diagnostics are visually neutral');
 expect_true(strpos($commandSource, 'analysis_source=') !== false
             && strpos($commandSource, 'analysis_run_id=') !== false,
             'historical buy approvals retain their analysis provenance in the command audit');

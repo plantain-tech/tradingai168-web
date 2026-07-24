@@ -90,7 +90,7 @@ $NAV_ACTIVE = 'dash';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Trading AI Horizon — Dashboard</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=42">
+<link rel="stylesheet" href="assets/css/app.css?v=43">
 </head>
 <body>
 <div class="bg"></div>
@@ -386,16 +386,18 @@ $NAV_ACTIVE = 'dash';
                 <span>Evidence <b><?= number_format((float) ($r['evidence_coverage_pct'] ?? 0), 0) ?>%</b></span>
                 <span>Confidence <b><?= htmlspecialchars($r['confidence'] ?? '—') ?></b></span>
                 <span>Qwen <b><?= htmlspecialchars($qwenHistoricalFailure
-                    ? 'OLDER RUN ' . $qwenVerdict : $qwenVerdict) ?></b></span>
+                    ? 'HISTORICAL ONLY' : $qwenVerdict) ?></b></span>
               </div>
               <p><?= htmlspecialchars($r['reason'] ?? '') ?></p>
               <?php if (in_array($qwenVerdict, ['FAILED', 'UNAVAILABLE'], true) && $qwenReason): ?>
-                <details class="qwen-alert">
+                <details class="qwen-alert <?= $qwenHistoricalFailure ? 'historical-qwen' : '' ?>">
                   <summary>
                     <span class="qwen-alert-mark" aria-hidden="true">!</span>
-                    <span><b><?= $qwenHistoricalFailure ? 'Earlier saved Qwen ' : 'Qwen ' ?><?= strtolower(htmlspecialchars($qwenVerdict)) ?></b>
-                      <small><?= htmlspecialchars(($qwenHistoricalFailure && $currentChallengerComplete)
-                          ? "Earlier saved failure - latest run's challenger completed"
+                    <span><b><?= $qwenHistoricalFailure
+                        ? 'Historical Qwen diagnostic'
+                        : 'Qwen ' . strtolower(htmlspecialchars($qwenVerdict)) ?></b>
+                      <small><?= htmlspecialchars($qwenHistoricalFailure
+                          ? 'Older analysis · retained for audit only'
                           : $qwenBrief) ?></small></span>
                     <em>Full details</em>
                   </summary>
@@ -690,10 +692,10 @@ function renderPanel(card) {
     const preflight = /local token preflight/i.test(qwenReason);
     const brief = preflight ? 'Local token preflight - Request not sent'
       : `${http ? `HTTP ${http[1]}` : 'Provider response'}${limited ? ' - Token limit exceeded' : ''}`;
-    qwenHtml = `<details class="qwen-alert qwen-panel-alert"><summary>` +
+    qwenHtml = `<details class="qwen-alert qwen-panel-alert${historicalQwen ? ' historical-qwen' : ''}"><summary>` +
       `<span class="qwen-alert-mark" aria-hidden="true">!</span>` +
-      `<span><b>${historicalQwen ? 'Earlier saved Qwen review' : 'Qwen review'} - ${esc(String(sig.challenger_verdict || sig.challenger_status || 'Unavailable'))}</b>` +
-      `<small>${esc(historicalQwen && latestChallengerComplete ? "Earlier saved failure - latest run's challenger completed" : brief)}</small></span><em>Full details</em></summary>` +
+      `<span><b>${historicalQwen ? 'Historical Qwen diagnostic' : `Qwen review - ${esc(String(sig.challenger_verdict || sig.challenger_status || 'Unavailable'))}`}</b>` +
+      `<small>${esc(historicalQwen ? 'Older analysis · retained for audit only' : brief)}</small></span><em>Full details</em></summary>` +
       `<div class="qwen-alert-body"><span>${historicalQwen ? 'Saved historical diagnostic - retained for audit honesty' : 'Complete bounded challenger diagnostic'}</span>` +
       `<p>${esc(qwenReason)}</p></div></details>`;
   }

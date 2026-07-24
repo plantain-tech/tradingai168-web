@@ -721,6 +721,17 @@ body.has-market-pulse{padding-top:55px}
 .qwen-alert .qwen-alert-body p{margin:0;padding:9px 10px;border:1px solid rgba(251,191,36,.12);border-radius:8px;
   color:#f5d98b;background:rgba(4,7,16,.35);font:500 9.5px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace;
   white-space:normal;overflow-wrap:anywhere;word-break:break-word}
+.qwen-alert.historical-qwen{border-color:rgba(148,163,184,.14);color:#a8b4ca;
+  background:linear-gradient(125deg,rgba(100,116,139,.055),rgba(30,41,59,.025))}
+.qwen-alert.historical-qwen[open]{border-color:rgba(148,163,184,.22);
+  background:linear-gradient(125deg,rgba(100,116,139,.08),rgba(30,41,59,.04))}
+.qwen-alert.historical-qwen .qwen-alert-mark{color:#d6deec;
+  background:linear-gradient(135deg,#475569,#334155);box-shadow:none}
+.qwen-alert.historical-qwen summary small,.qwen-alert.historical-qwen summary em,
+.qwen-alert.historical-qwen .qwen-alert-body{color:#8f9bb0}
+.qwen-alert.historical-qwen .qwen-alert-body>span{color:#7f8ba0}
+.qwen-alert.historical-qwen .qwen-alert-body p{color:#aeb8ca;
+  border-color:rgba(148,163,184,.1);background:rgba(4,7,16,.22)}
 .qwen-panel-alert{margin:12px 0}.qwen-panel-alert summary b{font-size:11px}
 @keyframes qwen-detail-in{from{opacity:0;transform:translateY(-7px)}to{opacity:1;transform:none}}
 .dd-review-action{display:flex; justify-content:flex-end; align-items:center; gap:6px;
