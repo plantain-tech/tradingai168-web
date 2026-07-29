@@ -335,6 +335,8 @@ select.in option{background:#12172a; color:var(--ink)}
   background:linear-gradient(var(--brand1),var(--brand2));opacity:.65}
 .dca-panel.dca-due{border-color:rgba(52,211,153,.34);box-shadow:0 8px 28px rgba(52,211,153,.07)}
 .dca-panel.dca-blocked{border-color:rgba(251,191,36,.30);background:rgba(251,191,36,.045)}
+.dca-panel.dca-override{border-color:rgba(34,211,238,.34);background:linear-gradient(120deg,rgba(99,102,241,.075),rgba(34,211,238,.055))}
+.dca-panel.dca-override:before{background:linear-gradient(var(--wait),var(--brand2))}
 .dca-panel-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px}
 .dca-panel-head>div>b{display:block;margin-top:3px;font-size:13px;color:var(--ink)}
 .dca-kicker{color:var(--brand2);font-size:9px;font-weight:850;letter-spacing:.15em;text-transform:uppercase}
@@ -963,6 +965,8 @@ body.has-market-pulse{padding-top:55px}
 @keyframes dca-progress-shimmer{to{transform:translateX(330%)}}@keyframes dca-research-orbit{0%,100%{transform:scale(.94);box-shadow:inset 0 0 0 1px rgba(34,211,238,.25),0 0 8px rgba(34,211,238,.12)}50%{transform:scale(1.06);box-shadow:inset 0 0 0 1px rgba(52,211,153,.4),0 0 20px rgba(34,211,238,.3)}}
 .dca-buy-control{display:grid;grid-template-columns:minmax(145px,.72fr) minmax(190px,1.28fr);gap:8px;padding:7px;border:1px solid rgba(34,211,238,.17);border-radius:12px;background:rgba(34,211,238,.035)}
 .dca-buy-control.is-disabled{border-color:rgba(251,191,36,.14);background:rgba(251,191,36,.025)}
+.dca-buy-control.is-override{border-color:rgba(251,191,36,.24);background:linear-gradient(110deg,rgba(251,191,36,.055),rgba(34,211,238,.045))}
+.dca-buy-control.is-override .dca-keep{background:linear-gradient(105deg,#d97706,#0891b2);box-shadow:0 8px 20px rgba(217,119,6,.16)}
 .dca-buy-control label{display:grid;grid-template-columns:1fr 68px;align-items:center;gap:3px 8px;padding:3px 5px;color:var(--ink)}
 .dca-buy-control label>span{font-size:9px;font-weight:750;text-transform:uppercase;letter-spacing:.04em}.dca-buy-control label>small{grid-column:1/-1;color:var(--muted);font-size:7.5px}
 .dca-qty-input{width:68px;padding:7px 8px;border:1px solid rgba(34,211,238,.28);border-radius:8px;background:rgba(3,7,18,.7);color:var(--ink);font:750 13px 'Segoe UI',system-ui,sans-serif;text-align:center;outline:none}

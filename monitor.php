@@ -26,7 +26,7 @@ $NAV_ACTIVE = 'auto-paper';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI Auto Trade · Paper — Trading AI Horizon</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=44">
+<link rel="stylesheet" href="assets/css/app.css?v=45">
 </head>
 <body>
 <div class="bg"></div>
@@ -274,6 +274,9 @@ function dcaPanel(c) {
   const approvePending = pendingHas(t, 'APPROVE_DCA');
   const holdPending = pendingHas(t, 'HOLD_DCA');
   const proposed = Number(c.dca_proposed_qty || 0);
+  const canChoosePaperBuy = due && proposed > 0
+    && c.risk_state !== 'RECONCILIATION_REQUIRED';
+  const advisoryOverride = canChoosePaperBuy && !eligible;
   const mode = c.dca_sizing_mode === 'adaptive_recovery'
     ? 'Adaptive recovery · base ± step' : 'Progressive strength · recommended';
   const reasons = (gate.reasons || []).join(' · ');
@@ -285,16 +288,17 @@ function dcaPanel(c) {
         ${approvePending ? 'KEEP BUYING queued — engine revalidating' : 'HOLD queued — rescheduling'}</button>`;
     } else {
       controls = `<div class="dca-actions">
-        <div class="dca-buy-control ${eligible && proposed > 0 ? '' : 'is-disabled'}">
+        <div class="dca-buy-control ${canChoosePaperBuy ? '' : 'is-disabled'} ${advisoryOverride ? 'is-override' : ''}">
           <label for="dca-qty-${t}"><span>Shares to buy</span>
             <input id="dca-qty-${t}" class="dca-qty-input" type="number" inputmode="numeric"
-              min="1" step="1" value="${Math.max(1, proposed)}" ${eligible && proposed > 0 ? '' : 'disabled'}>
+              min="1" step="1" value="${Math.max(1, proposed)}" ${canChoosePaperBuy ? '' : 'disabled'}>
             <small>Recommended ${proposed || '—'} · adjustable by you</small></label>
           <button class="dca-choice dca-keep dca-buy-click" data-ticker="${t}"
-            ${eligible && proposed > 0 ? '' : 'disabled'}>
-            <span>Keep buying</span><b>${eligible && proposed > 0
-              ? (riskPaused ? 'Explicit approval required' : 'Approve this checkpoint only')
-              : 'Hard trading protection blocked'}</b></button></div>
+            ${canChoosePaperBuy ? '' : 'disabled'}>
+            <span>Keep buying</span><b>${canChoosePaperBuy
+              ? (advisoryOverride ? 'Your Paper decision · warnings are advisory'
+                : (riskPaused ? 'Explicit approval required' : 'Approve this checkpoint only'))
+              : 'Unavailable · budget or broker truth requires attention'}</b></button></div>
         <button class="dca-choice dca-hold dca-hold-click" data-ticker="${t}">
           <span>Hold</span><b>No order · review later</b></button></div>`;
     }
@@ -302,10 +306,12 @@ function dcaPanel(c) {
     controls = `<div class="dca-waiting"><span class="dca-pulse"></span>
       Monitoring · your decision will be requested on the next checkpoint</div>`;
   }
-  return `<section class="dca-panel ${due ? (eligible ? 'dca-due' : 'dca-blocked') : ''}">
+  return `<section class="dca-panel ${due ? (canChoosePaperBuy ? 'dca-due' : 'dca-blocked') : ''} ${advisoryOverride ? 'dca-override' : ''}">
     <div class="dca-panel-head"><div><span class="dca-kicker">Advanced DCA checkpoint</span>
-      <b>${due ? (riskPaused ? 'Alert review · buying paused' :
-        (eligible ? 'Your decision is due' : 'Review required · buying blocked')) : 'Scheduled & monitoring'}</b></div>
+      <b>${due ? (canChoosePaperBuy
+        ? (advisoryOverride ? 'Your decision is due · strategy warnings shown below'
+          : (riskPaused ? 'Alert review · your explicit decision is required' : 'Your decision is due'))
+        : 'Buying unavailable · mechanical protection active') : 'Scheduled & monitoring'}</b></div>
       <span class="dca-mode">${mode}</span></div>
     <ol class="dca-timeline" aria-label="${t} campaign timeline">
       <li class="dca-step is-complete"><span class="dca-step-number">1</span><div>
@@ -322,7 +328,9 @@ function dcaPanel(c) {
       <span>Filled tranches <b>${c.tranche_count || 0} / ${c.max_tranches || '—'}</b></span>
       <span>Status <b>${String(c.dca_status || 'SCHEDULED').replaceAll('_',' ')}</b></span>
       ${c.last_dca_decision ? `<span>Last choice <b>${String(c.last_dca_decision).replaceAll('_',' ')}</b></span>` : ''}</div>
-    ${reasons ? `<p class="dca-reason"><b>Buying protection:</b> ${esc(reasons)}</p>` : ''}
+    ${reasons ? `<p class="dca-reason"><b>${advisoryOverride
+      ? 'Strategy warnings · advisory in Paper mode:'
+      : 'Non-overridable protection:'}</b> ${esc(reasons)}</p>` : ''}
     ${advisories.length ? `<div class="dca-advisories"><b>Decision references</b><ul>${advisories.slice(0,8).map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
     ${dcaAiReview(c)}${dcaHistory(c)}${controls}</section>`;
 }
@@ -702,8 +710,10 @@ grid.addEventListener('click', e => {
              ['Your selected tranche', `${quantity} shares`],
              ['Engine recommendation', `${c.dca_proposed_qty || 0} shares`],
              ['Sizing', c.dca_sizing_mode === 'adaptive_recovery' ? 'Adaptive recovery' : 'Progressive strength'],
+             ['Strategy warnings', (c.dca_gate?.reasons || []).length
+               ? c.dca_gate.reasons.join(' · ') : 'None recorded'],
              ['Authorization', 'This checkpoint only']],
-      note: 'The PC engine re-checks momentum, earnings timing, drawdown, budget, spread and Moomoo price before placing one bounded Paper order. If any gate fails, no order is sent.',
+      note: 'Your explicit Paper decision overrides momentum, earnings, drawdown and other strategy warnings for this checkpoint only. The PC engine still enforces the campaign/global budget, fresh Moomoo broker truth, regular market hours, valid quotes, spread and order-cancellation safety.',
       okLabel: `Confirm KEEP BUYING ${t}`,
       onConfirm: async () => {
         if (await queueCommand('APPROVE_DCA', t, CSRF, {quantity})) {
