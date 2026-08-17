@@ -65,6 +65,7 @@ function ensure_tables(PDO $pdo): void {
 function default_settings(): array {
     return [
         'budget_usd' => 15000, 'max_concurrent' => 3,
+        'analysis_price_min' => 20, 'analysis_price_max' => 1500,
         'tranche_base' => 20, 'tranche_step' => 5, 'dca_gap_bdays' => 5,
         'dca_sizing_mode' => 'progressive', 'dca_max_tranches' => 4,
         'dca_min_quant_score' => 50,

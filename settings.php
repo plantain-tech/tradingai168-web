@@ -15,6 +15,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $s = [
             'budget_usd'       => max(100, $f('budget_usd', 15000)),
             'max_concurrent'   => max(1, min(10, (int) $f('max_concurrent', 3))),
+            'analysis_price_min' => max(0.01, min(100000, $f('analysis_price_min', 20))),
+            'analysis_price_max' => max(0.01, min(100000, $f('analysis_price_max', 1500))),
             'tranche_base'     => max(1, (int) $f('tranche_base', 20)),
             'tranche_step'     => max(0, (int) $f('tranche_step', 5)),
             'dca_gap_bdays'    => max(1, (int) $f('dca_gap_bdays', 5)),
@@ -40,7 +42,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'forecast_alert_closed_hours' => max(0.25, min(168, $f('forecast_alert_closed_hours', 4))),
             'campaign_tick_hours' => max(0.25, min(24, $f('campaign_tick_hours', 4))),
         ];
-        if ($s['loss_urgent_usd'] < $s['loss_alert_usd']) {
+        if ($s['analysis_price_max'] < $s['analysis_price_min']) {
+            $err = 'Maximum analysis price must be greater than or equal to the minimum.';
+        } elseif ($s['loss_urgent_usd'] < $s['loss_alert_usd']) {
             $err = 'Urgent loss level must be >= the alert level.';
         } else { save_settings($s); $msg = 'Trading & risk settings saved.'; }
     } elseif ($act === 'ai') {
@@ -102,6 +106,12 @@ $token = api_token();
       <div><label>Max concurrent stocks</label>
         <input class="in" name="max_concurrent" type="number" min="1" max="10"
                value="<?= $s['max_concurrent'] ?? 3 ?>"></div>
+      <div><label>Analysis minimum stock price ($)</label>
+        <input class="in" name="analysis_price_min" type="number" min="0.01" max="100000" step="0.01"
+               value="<?= $s['analysis_price_min'] ?? 20 ?>"></div>
+      <div><label>Analysis maximum stock price ($)</label>
+        <input class="in" name="analysis_price_max" type="number" min="0.01" max="100000" step="0.01"
+               value="<?= $s['analysis_price_max'] ?? 1500 ?>"></div>
       <div><label>Tranche base (shares)</label>
         <input class="in" name="tranche_base" type="number" value="<?= $s['tranche_base'] ?>"></div>
       <div><label>Tranche step (&plusmn;)</label>
@@ -165,7 +175,9 @@ $token = api_token();
         <input class="in" name="campaign_tick_hours" type="number" min="0.25" max="24" step="0.25"
                value="<?= $s['campaign_tick_hours'] ?? 4 ?>"></div>
       <div class="full"><button class="btn">Save trading settings</button></div>
-      <p class="muted small full" style="margin:0">Progressive sizing reduces each later tranche.
+      <p class="muted small full" style="margin:0">The analysis price range controls the dashboard
+        technical screen and each checkpoint reevaluation; the default is $20-$1,500 per share.
+        Progressive sizing reduces each later tranche.
         Adaptive recovery retains base ± step, but a larger below-cost tranche is allowed only after
         deterministic price-recovery protections pass; a positive quantitative, GPT-OSS, Qwen and
         attention review may confirm that recovery but is otherwise optional decision evidence.

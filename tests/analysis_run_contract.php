@@ -94,6 +94,10 @@ expect_true(strpos($settingsSource, 'forecast_alert_open_minutes') !== false
             && strpos($settingsSource, 'forecast_alert_closed_hours') !== false
             && strpos($settingsSource, 'campaign_tick_hours') !== false,
             'Settings exposes both forecast-alert cadences and the campaign deep-review cadence');
+expect_true(strpos($settingsSource, 'analysis_price_min') !== false
+            && strpos($settingsSource, 'analysis_price_max') !== false
+            && strpos($settingsSource, '1500') !== false,
+            'Settings exposes the adjustable analysis price range with a $1,500 default maximum');
 expect_true(strpos($monitorSource, 'show_remainder_notice') !== false
             && strpos($monitorSource, 'Cancelled remainder') !== false
             && strpos($monitorSource, "['Working orders', 'None']") !== false
