@@ -17,6 +17,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'max_concurrent'   => max(1, min(10, (int) $f('max_concurrent', 3))),
             'analysis_price_min' => max(0.01, min(100000, $f('analysis_price_min', 20))),
             'analysis_price_max' => max(0.01, min(100000, $f('analysis_price_max', 1500))),
+            'entry_signal_rsi_min' => max(20, min(60, $f('entry_signal_rsi_min', 40))),
+            'entry_signal_rsi_max' => max(40, min(80, $f('entry_signal_rsi_max', 65))),
+            'entry_signal_recent_cross_bars' => max(1, min(15, (int) $f('entry_signal_recent_cross_bars', 5))),
+            'entry_signal_slope_bars' => max(1, min(10, (int) $f('entry_signal_slope_bars', 3))),
             'tranche_base'     => max(1, (int) $f('tranche_base', 20)),
             'tranche_step'     => max(0, (int) $f('tranche_step', 5)),
             'dca_gap_bdays'    => max(1, (int) $f('dca_gap_bdays', 5)),
@@ -44,6 +48,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
         if ($s['analysis_price_max'] < $s['analysis_price_min']) {
             $err = 'Maximum analysis price must be greater than or equal to the minimum.';
+        } elseif ($s['entry_signal_rsi_max'] < $s['entry_signal_rsi_min']) {
+            $err = 'The upper RSI advisory boundary must be greater than or equal to the lower boundary.';
         } elseif ($s['loss_urgent_usd'] < $s['loss_alert_usd']) {
             $err = 'Urgent loss level must be >= the alert level.';
         } else { save_settings($s); $msg = 'Trading & risk settings saved.'; }
@@ -86,7 +92,7 @@ $token = api_token();
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Settings — Trading AI Horizon</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=42">
+<link rel="stylesheet" href="assets/css/app.css?v=44">
 </head>
 <body>
 <div class="bg"></div>
@@ -112,6 +118,18 @@ $token = api_token();
       <div><label>Analysis maximum stock price ($)</label>
         <input class="in" name="analysis_price_max" type="number" min="0.01" max="100000" step="0.01"
                value="<?= $s['analysis_price_max'] ?? 1500 ?>"></div>
+      <div><label>Buy-signal RSI lower boundary</label>
+        <input class="in" name="entry_signal_rsi_min" type="number" min="20" max="60" step="1"
+               value="<?= $s['entry_signal_rsi_min'] ?? 40 ?>"></div>
+      <div><label>Buy-signal RSI upper boundary</label>
+        <input class="in" name="entry_signal_rsi_max" type="number" min="40" max="80" step="1"
+               value="<?= $s['entry_signal_rsi_max'] ?? 65 ?>"></div>
+      <div><label>Recent MACD crossover window (daily bars)</label>
+        <input class="in" name="entry_signal_recent_cross_bars" type="number" min="1" max="15" step="1"
+               value="<?= $s['entry_signal_recent_cross_bars'] ?? 5 ?>"></div>
+      <div><label>MACD / RSI rising-trend window (daily bars)</label>
+        <input class="in" name="entry_signal_slope_bars" type="number" min="1" max="10" step="1"
+               value="<?= $s['entry_signal_slope_bars'] ?? 3 ?>"></div>
       <div><label>Tranche base (shares)</label>
         <input class="in" name="tranche_base" type="number" value="<?= $s['tranche_base'] ?>"></div>
       <div><label>Tranche step (&plusmn;)</label>
@@ -177,6 +195,10 @@ $token = api_token();
       <div class="full"><button class="btn">Save trading settings</button></div>
       <p class="muted small full" style="margin:0">The analysis price range controls the dashboard
         technical screen and each checkpoint reevaluation; the default is $20-$1,500 per share.
+        The technical buy marker uses completed daily closes only: standard MACD 12/26/9 must show
+        a recent bullish crossover or a strengthening bullish continuation, and at least two of
+        RSI 6/12/24 must be inside the adjustable zone and rising. It is decision support only—it
+        never changes PASS/WATCH status, bypasses safeguards, or places an order.
         Progressive sizing reduces each later tranche.
         Adaptive recovery retains base ± step, but a larger below-cost tranche is allowed only after
         deterministic price-recovery protections pass; a positive quantitative, GPT-OSS, Qwen and

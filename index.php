@@ -90,7 +90,7 @@ $NAV_ACTIVE = 'dash';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Trading AI Horizon — Dashboard</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=43">
+<link rel="stylesheet" href="assets/css/app.css?v=44">
 </head>
 <body>
 <div class="bg"></div>
@@ -174,6 +174,7 @@ $NAV_ACTIVE = 'dash';
             $analysis = $t['analysis'] ?? $t['reason'] ?? '';
             if ($isChosen && !empty($p['rationale'])) { $analysis = $p['rationale']; }
             $sig = $t['signals'] ?? [];
+            $entrySignal = is_array($sig['entry_signal'] ?? null) ? $sig['entry_signal'] : [];
             $sig['historical_result'] = $pickHistorical;
             $sig['latest_challenger_complete'] = $pickHistorical && $currentChallengerComplete; ?>
         <div class="tile pick-tile analysis-source selectable <?= $isChosen ? 'chosen selected' : '' ?>"
@@ -189,6 +190,10 @@ $NAV_ACTIVE = 'dash';
               <?= htmlspecialchars($t['decision'] ?? 'PASS') ?> · <?= htmlspecialchars($t['confidence'] ?? '—') ?> confidence
             </span></div>
           <p class="muted small"><?= htmlspecialchars($t['reason']) ?></p>
+          <?php if (!empty($entrySignal['advisory'])): ?>
+            <div class="entry-signal-badge" title="Advisory only — no automatic order">
+              <span>✦ Technical buy signal</span><small>MACD + rising RSI confirmation</small></div>
+          <?php endif; ?>
           <?php if ($isRunning): ?>
             <button class="btn buybtn locked" disabled><span class="lockdot"></span>
               Auto-trading active — manage it on Monitor</button>
@@ -369,6 +374,7 @@ $NAV_ACTIVE = 'dash';
                 'challenger_status' => $p['challenger']['status'] ?? strtolower($qwenVerdict),
                 'challenger_verdict' => $qwenVerdict,
                 'challenger_reason' => $qwenReason,
+                'entry_signal' => $r['quant_signals']['entry_signal'] ?? null,
               ]; ?>
             <div class="dd-review-row analysis-source selectable" role="button" tabindex="0"
                     data-ticker="<?= $reviewTickerHtml ?>"
@@ -389,6 +395,11 @@ $NAV_ACTIVE = 'dash';
                     ? 'HISTORICAL ONLY' : $qwenVerdict) ?></b></span>
               </div>
               <p><?= htmlspecialchars($r['reason'] ?? '') ?></p>
+              <?php $reviewEntrySignal = $r['quant_signals']['entry_signal'] ?? null;
+                    if (is_array($reviewEntrySignal) && !empty($reviewEntrySignal['advisory'])): ?>
+                <div class="entry-signal-badge compact" title="Advisory only — no automatic order">
+                  <span>✦ Technical buy signal</span><small>MACD + rising RSI confirmation</small></div>
+              <?php endif; ?>
               <?php if (in_array($qwenVerdict, ['FAILED', 'UNAVAILABLE'], true) && $qwenReason): ?>
                 <details class="qwen-alert <?= $qwenHistoricalFailure ? 'historical-qwen' : '' ?>">
                   <summary>
@@ -486,6 +497,8 @@ $NAV_ACTIVE = 'dash';
         <?php foreach ($leadingPotentials as $candidate):
             $ticker = strtoupper((string) ($candidate['ticker'] ?? ''));
             $signals = is_array($candidate['signals'] ?? null) ? $candidate['signals'] : [];
+            $candidateEntrySignal = is_array($signals['entry_signal'] ?? null)
+                ? $signals['entry_signal'] : [];
             $isSelected = !empty($selectedTickersForWatchlist[$ticker]);
             $reviewDecision = strtoupper((string) ($reviewedForWatchlist[$ticker]['final_decision']
                 ?? $reviewedForWatchlist[$ticker]['decision'] ?? ''));
@@ -506,6 +519,10 @@ $NAV_ACTIVE = 'dash';
               <span><small>Relative to S&amp;P 500</small><b><?= number_format(100 * (float) ($signals['relative_spy'] ?? 0), 1) ?>%</b></span>
               <span><small>Recent volume</small><b><?= number_format(100 * (float) ($signals['recent_volume_ratio'] ?? 0), 0) ?>%</b></span>
             </div>
+            <?php if (!empty($candidateEntrySignal['advisory'])): ?>
+              <div class="entry-signal-badge compact" title="Advisory only — no automatic order">
+                <span>✦ Technical buy signal</span><small>Completed daily bars</small></div>
+            <?php endif; ?>
           </article>
         <?php endforeach; ?>
       </div>
@@ -514,13 +531,16 @@ $NAV_ACTIVE = 'dash';
           <summary>Show <?= count($additionalPotentials) ?> additional potential momentum
             <?= count($additionalPotentials) === 1 ? 'stock' : 'stocks' ?></summary>
           <div class="momentum-more-list">
-            <?php foreach ($additionalPotentials as $candidate): $signals = $candidate['signals'] ?? []; ?>
+            <?php foreach ($additionalPotentials as $candidate): $signals = $candidate['signals'] ?? [];
+                  $candidateEntrySignal = is_array($signals['entry_signal'] ?? null)
+                      ? $signals['entry_signal'] : []; ?>
               <div><span><b>#<?= (int) ($candidate['quant_rank'] ?? 0) ?> ·
                     <?= htmlspecialchars((string) ($candidate['ticker'] ?? '')) ?></b>
                   <small><?= htmlspecialchars((string) ($candidate['name'] ?? '')) ?></small></span>
                 <strong><?= number_format((float) ($candidate['quant_score'] ?? 0), 1) ?></strong>
                 <em><?= number_format(100 * (float) ($signals['momentum_3_1'] ?? 0), 1) ?>% three-month ·
-                  <?= number_format(100 * (float) ($signals['relative_spy'] ?? 0), 1) ?>% vs S&amp;P 500</em></div>
+                  <?= number_format(100 * (float) ($signals['relative_spy'] ?? 0), 1) ?>% vs S&amp;P 500
+                  <?= !empty($candidateEntrySignal['advisory']) ? ' · ✦ TECHNICAL BUY SIGNAL' : '' ?></em></div>
             <?php endforeach; ?>
           </div>
         </details>
@@ -683,6 +703,20 @@ function renderPanel(card) {
   const sigHtml = Object.keys(label).map(k =>
       `<div class="sigcell"><span>${esc(label[k])}</span><b>${esc(fmtV(k, sig[k]))}</b></div>`).join('');
   const qwenReason = String(sig.challenger_reason || '').trim();
+  const entry = sig.entry_signal && typeof sig.entry_signal === 'object' ? sig.entry_signal : null;
+  let entryHtml = '';
+  if (entry && entry.available) {
+    const macd = entry.macd || {};
+    const rsi = entry.rsi || {};
+    const values = rsi.values || {};
+    entryHtml = `<section class="entry-signal-panel ${entry.advisory ? 'active' : ''}">` +
+      `<div><span>${entry.advisory ? '✦ TECHNICAL BUY SIGNAL' : 'TECHNICAL ENTRY CHECK'}</span>` +
+      `<b>${esc(entry.label || 'No current signal')}</b></div>` +
+      `<p>${esc(entry.reason || '')}</p>` +
+      `<dl><div><dt>MACD 12/26/9</dt><dd>DIF ${esc(macd.dif ?? '—')} · DEA ${esc(macd.dea ?? '—')} · Histogram ${esc(macd.histogram ?? '—')}</dd></div>` +
+      `<div><dt>RSI 6 / 12 / 24</dt><dd>${esc(values['6'] ?? '—')} · ${esc(values['12'] ?? '—')} · ${esc(values['24'] ?? '—')}</dd></div></dl>` +
+      `<small>${esc(entry.basis || 'Advisory only.')}</small></section>`;
+  }
   const historicalQwen = Boolean(sig.historical_result);
   const latestChallengerComplete = Boolean(sig.latest_challenger_complete);
   let qwenHtml = '';
@@ -703,7 +737,7 @@ function renderPanel(card) {
       ? `<div class="basis"><b>How the score of ${esc(card.dataset.score)} was built:</b> ` +
         `<span>${esc(humanizeScoreBasis(card.dataset.basis))}</span></div>` : '';
   body.innerHTML =
-      `<div class="siggrid">${sigHtml}</div>${qwenHtml}${basis}` + mdReport(card.dataset.analysis);
+      `${entryHtml}<div class="siggrid">${sigHtml}</div>${qwenHtml}${basis}` + mdReport(card.dataset.analysis);
 }
 
 // Render the analyst report: "HEADING:" lines become section titles, prose flows.

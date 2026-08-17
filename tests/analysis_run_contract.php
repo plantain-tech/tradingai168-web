@@ -98,6 +98,12 @@ expect_true(strpos($settingsSource, 'analysis_price_min') !== false
             && strpos($settingsSource, 'analysis_price_max') !== false
             && strpos($settingsSource, '1500') !== false,
             'Settings exposes the adjustable analysis price range with a $1,500 default maximum');
+expect_true(strpos($settingsSource, 'entry_signal_rsi_min') !== false
+            && strpos($settingsSource, 'entry_signal_recent_cross_bars') !== false
+            && strpos($dashboardSource, 'Technical buy signal') !== false
+            && strpos($dashboardSource, 'entry-signal-panel') !== false
+            && strpos($styleSource, '.entry-signal-badge') !== false,
+            'Dashboard exposes the adjustable evidence-backed MACD and RSI advisory');
 expect_true(strpos($monitorSource, 'show_remainder_notice') !== false
             && strpos($monitorSource, 'Cancelled remainder') !== false
             && strpos($monitorSource, "['Working orders', 'None']") !== false

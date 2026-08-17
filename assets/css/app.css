@@ -299,6 +299,23 @@ select.in option{background:#12172a; color:var(--ink)}
 @keyframes shine{0%,55%{left:-60%}85%,100%{left:130%}}
 .pick-tile.chosen{padding-top:22px}
 .pick-tile em{font-size:10.5px; font-style:normal; display:block; margin-top:2px}
+.entry-signal-badge{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 0;
+  padding:9px 11px;border:1px solid rgba(52,211,153,.34);border-radius:11px;
+  color:#6ee7b7;background:linear-gradient(110deg,rgba(16,185,129,.13),rgba(34,211,238,.07));
+  box-shadow:inset 0 0 20px rgba(16,185,129,.04);animation:entry-signal-in .42s cubic-bezier(.2,.8,.2,1) both}
+.entry-signal-badge span{font-size:10px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}
+.entry-signal-badge small{color:var(--muted);font-size:9px}.entry-signal-badge.compact{padding:6px 8px;margin:7px 0}
+@keyframes entry-signal-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.entry-signal-panel{margin-bottom:12px;padding:13px;border:1px solid var(--line);border-radius:13px;background:rgba(8,13,28,.55)}
+.entry-signal-panel.active{border-color:rgba(52,211,153,.4);background:linear-gradient(120deg,rgba(16,185,129,.11),rgba(34,211,238,.05))}
+.entry-signal-panel>div:first-child{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.entry-signal-panel span{color:var(--brand2);font-size:9px;font-weight:900;letter-spacing:.11em}
+.entry-signal-panel.active span,.entry-signal-panel.active b{color:#6ee7b7}.entry-signal-panel p{font-size:11px;line-height:1.55;color:var(--muted)}
+.entry-signal-panel dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:8px 0}
+.entry-signal-panel dl div{padding:8px;border:1px solid var(--line);border-radius:9px}.entry-signal-panel dt{font-size:9px;color:var(--muted)}
+.entry-signal-panel dd{margin:3px 0 0;font-size:10px;color:var(--ink)}.entry-signal-panel>small{color:var(--muted);font-size:9px}
+@media(max-width:620px){.entry-signal-badge{align-items:flex-start;flex-direction:column}.entry-signal-panel dl{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){.entry-signal-badge{animation:none}}
 
 /* ---- monitor page ---- */
 .livedot{display:inline-block; width:7px; height:7px; border-radius:50%;
