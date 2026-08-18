@@ -69,14 +69,14 @@ expect_true(strpos($commandSource, 'requested_qty=') !== false
             'DCA share quantity is authenticated and validated before queueing');
 expect_true(strpos($monitorSource, 'dca-qty-input') !== false
             && strpos($monitorSource, "{quantity}") !== false
-            && strpos($monitorSource, 'AI checkpoint evidence') !== false,
+            && strpos($monitorSource, 'Optional daily AI reference') !== false,
             'due checkpoints expose the adjustable quantity and complete evidence status');
 expect_true(strpos($commandSource, "'RUN_DCA_REVIEW'") !== false
             && strpos($monitorSource, "queueCommand('RUN_DCA_REVIEW'") !== false
             && strpos($monitorSource, 'dca-review-progress') !== false
             && strpos($styleSource, '@keyframes dca-progress-shimmer') !== false,
             'each due stock exposes authenticated manual research with animated progress');
-expect_true(strpos($monitorSource, 'Optional AI checkpoint evidence') !== false
+expect_true(strpos($monitorSource, 'Optional daily AI reference') !== false
             && strpos($monitorSource, 'Not reached') !== false
             && strpos($monitorSource, 'Why this optional review stopped') !== false
             && strpos($monitorSource, 'warnings are advisory') !== false
@@ -104,6 +104,14 @@ expect_true(strpos($settingsSource, 'entry_signal_rsi_min') !== false
             && strpos($dashboardSource, 'entry-signal-panel') !== false
             && strpos($styleSource, '.entry-signal-badge') !== false,
             'Dashboard exposes the adjustable evidence-backed MACD and RSI advisory');
+expect_true(strpos($dashboardSource, 'Review Paper buy') !== false
+            && strpos($dashboardSource, 'QUANTITATIVE POTENTIAL') !== false
+            && strpos($dashboardSource, 'Artificial-intelligence PASS/WATCH/VETO is advice') !== false,
+            'quantitative momentum leaders expose an explicit Paper-buy review path');
+expect_true(strpos($monitorSource, 'Optional daily AI reference') !== false
+            && strpos($monitorSource, 'never disables KEEP BUYING') !== false
+            && strpos($monitorSource, 'Refresh or reconcile the Moomoo position first') !== false,
+            'daily AI evidence is advisory while mechanical broker truth remains explicit');
 expect_true(strpos($monitorSource, 'show_remainder_notice') !== false
             && strpos($monitorSource, 'Cancelled remainder') !== false
             && strpos($monitorSource, "['Working orders', 'None']") !== false

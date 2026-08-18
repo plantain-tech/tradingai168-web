@@ -26,7 +26,7 @@ $NAV_ACTIVE = 'auto-paper';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI Auto Trade · Paper — Trading AI Horizon</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=45">
+<link rel="stylesheet" href="assets/css/app.css?v=46">
 </head>
 <body>
 <div class="bg"></div>
@@ -206,7 +206,7 @@ function dcaAiReview(c) {
   const queued = pendingHas(c.ticker, 'RUN_DCA_REVIEW');
   const tone = status === 'completed' && r.eligible ? 'pass'
     : status === 'running' ? 'running' : 'advisory';
-  const title = status === 'running' ? 'Optional checkpoint research running'
+  const title = status === 'running' ? 'Optional daily research running'
     : status === 'completed' ? (r.eligible ? 'Positive reevaluation evidence' : 'Mixed or cautious reevaluation evidence')
     : status === 'failed' ? 'Optional reevaluation unavailable' : 'Optional reevaluation available';
   const quant = Number.isFinite(Number(r.quant_score)) ? Number(r.quant_score).toFixed(1) : '—';
@@ -228,7 +228,7 @@ function dcaAiReview(c) {
     ? 'Queued for the PC research worker' : String(r.progress_stage || 'Preparing evidence');
   const runLabel = status === 'completed' || status === 'failed' ? 'Run analysis again' : 'Start analysis';
   return `<div class="dca-ai-review tone-${tone}">
-    <div class="dca-ai-review-head"><div><span>Optional AI checkpoint evidence</span><b>${esc(title)}</b></div>
+    <div class="dca-ai-review-head"><div><span>Optional daily AI reference</span><b>${esc(title)}</b></div>
       <em>${status === 'running' ? '<i></i> In progress' : esc(status.replaceAll('_',' '))}</em></div>
     <div class="dca-research-control ${status === 'running' || queued ? 'is-active' : ''}">
       <button type="button" class="dca-review-run" data-ticker="${esc(c.ticker)}"
@@ -238,7 +238,7 @@ function dcaAiReview(c) {
           <small>Quant · GPT-OSS · Qwen · 14-day attention</small></span>
       </button>
       ${(status === 'running' || queued) ? `<div class="dca-review-progress" role="progressbar"
-        aria-label="${esc(c.ticker)} checkpoint research" aria-valuemin="0" aria-valuemax="100"
+        aria-label="${esc(c.ticker)} daily research" aria-valuemin="0" aria-valuemax="100"
         aria-valuenow="${progress}"><div><i style="width:${progress}%"></i></div>
         <span><i>${esc(progressStage)}</i><b>${progress}%</b></span></div>` :
         `<p>This research is optional decision support. Any purchase still requires hard risk checks, fresh Moomoo execution validation, and your approval.</p>`}
@@ -276,6 +276,11 @@ function dcaPanel(c) {
   const proposed = Number(c.dca_proposed_qty || 0);
   const canChoosePaperBuy = due && proposed > 0
     && c.risk_state !== 'RECONCILIATION_REQUIRED';
+  const hardBuyReason = c.risk_state === 'RECONCILIATION_REQUIRED'
+    ? 'Refresh or reconcile the Moomoo position first'
+    : proposed < 1
+      ? (String(c.dca_reason || '').trim() || 'No whole share fits the remaining budget')
+      : 'Fresh broker execution facts are unavailable';
   const advisoryOverride = canChoosePaperBuy && !eligible;
   const mode = c.dca_sizing_mode === 'adaptive_recovery'
     ? 'Adaptive recovery · base ± step' : 'Progressive strength · recommended';
@@ -298,7 +303,7 @@ function dcaPanel(c) {
             <span>Keep buying</span><b>${canChoosePaperBuy
               ? (advisoryOverride ? 'Your Paper decision · warnings are advisory'
                 : (riskPaused ? 'Explicit approval required' : 'Approve this checkpoint only'))
-              : 'Unavailable · budget or broker truth requires attention'}</b></button></div>
+              : esc(hardBuyReason)}</b></button></div>
         <button class="dca-choice dca-hold dca-hold-click" data-ticker="${t}">
           <span>Hold</span><b>No order · review later</b></button></div>`;
     }
@@ -332,7 +337,9 @@ function dcaPanel(c) {
       ? 'Strategy warnings · advisory in Paper mode:'
       : 'Non-overridable protection:'}</b> ${esc(reasons)}</p>` : ''}
     ${advisories.length ? `<div class="dca-advisories"><b>Decision references</b><ul>${advisories.slice(0,8).map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
-    ${dcaAiReview(c)}${dcaHistory(c)}${controls}</section>`;
+    ${dcaAiReview(c)}
+    ${due ? '<p class="dca-ai-policy">Daily artificial-intelligence analysis is optional reference only and never disables KEEP BUYING. Only current Moomoo position truth and whole-share budget availability can keep this Paper button unavailable.</p>' : ''}
+    ${dcaHistory(c)}${controls}</section>`;
 }
 
 function renderEngineHealth() {

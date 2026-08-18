@@ -82,6 +82,12 @@ foreach ($reviewSource as $reviewRow) {
     $reviewTicker = strtoupper((string) ($reviewRow['ticker'] ?? ''));
     if ($reviewTicker !== '') { $reviewedForWatchlist[$reviewTicker] = $reviewRow; }
 }
+$analysisMinute = 'time unavailable';
+$candidateAnalysisRaw = (string) (($pick['updated_at'] ?? '') ?: ($candDoc['updated_at'] ?? ''));
+if ($candidateAnalysisRaw !== '') {
+    try { $analysisMinute = (new DateTime($candidateAnalysisRaw))->format('Y-m-d H:i'); }
+    catch (Exception $e) { /* Preserve the explicit unavailable label. */ }
+}
 $NAV_ACTIVE = 'dash';
 ?>
 <!doctype html>
@@ -90,7 +96,7 @@ $NAV_ACTIVE = 'dash';
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Trading AI Horizon — Dashboard</title>
 <link rel="icon" type="image/png" href="favicon.png?v=2">
-<link rel="stylesheet" href="assets/css/app.css?v=44">
+<link rel="stylesheet" href="assets/css/app.css?v=46">
 </head>
 <body>
 <div class="bg"></div>
@@ -490,7 +496,8 @@ $NAV_ACTIVE = 'dash';
         <div><span class="momentum-watchlist-kicker">DETERMINISTIC MARKET RANKING</span>
           <h2 id="momentumWatchlistTitle">Quantitative momentum leaders</h2>
           <p>Ordered by quantitative score. These names passed the market-data screen;
-            only cards explicitly marked <b>AI-qualified</b> are approved selections.</p></div>
+            artificial-intelligence review is optional guidance. You may still choose a Paper buy;
+            the PC engine rechecks the slot, budget, broker quote, and portfolio protections.</p></div>
         <span class="momentum-watchlist-count"><?= count($candidateRows) ?> researched</span>
       </div>
       <div class="momentum-leaders">
@@ -523,6 +530,24 @@ $NAV_ACTIVE = 'dash';
               <div class="entry-signal-badge compact" title="Advisory only — no automatic order">
                 <span>✦ Technical buy signal</span><small>Completed daily bars</small></div>
             <?php endif; ?>
+            <div class="momentum-potential-action">
+              <?php if (!empty($running[$ticker])): ?>
+                <button class="dd-candidate-buy locked" type="button" disabled>Auto-trading active</button>
+              <?php elseif (!empty($queued[$ticker]['APPROVE_BUY'])): ?>
+                <button class="dd-candidate-buy locked" type="button" disabled>Paper order queued</button>
+              <?php elseif ($slotsFull): ?>
+                <button class="dd-candidate-buy locked" type="button" disabled>Campaign slots full</button>
+              <?php else: ?>
+                <button class="dd-candidate-buy buy-choice" type="button"
+                        data-ticker="<?= htmlspecialchars($ticker) ?>"
+                        data-name="<?= htmlspecialchars((string) ($candidate['name'] ?? $ticker)) ?>"
+                        data-decision="<?= htmlspecialchars($reviewDecision ?: 'QUANTITATIVE POTENTIAL') ?>"
+                        data-historical="0" data-analysis-time="<?= htmlspecialchars($analysisMinute) ?>"
+                        data-run-id="<?= htmlspecialchars($candidateRunId) ?>"
+                        data-price="<?= htmlspecialchars((string) ($candidate['price'] ?? '')) ?>">
+                  Review Paper buy</button>
+              <?php endif; ?>
+            </div>
           </article>
         <?php endforeach; ?>
       </div>
@@ -533,21 +558,38 @@ $NAV_ACTIVE = 'dash';
           <div class="momentum-more-list">
             <?php foreach ($additionalPotentials as $candidate): $signals = $candidate['signals'] ?? [];
                   $candidateEntrySignal = is_array($signals['entry_signal'] ?? null)
-                      ? $signals['entry_signal'] : []; ?>
+                      ? $signals['entry_signal'] : [];
+                  $candidateTicker = strtoupper((string) ($candidate['ticker'] ?? '')); ?>
               <div><span><b>#<?= (int) ($candidate['quant_rank'] ?? 0) ?> ·
                     <?= htmlspecialchars((string) ($candidate['ticker'] ?? '')) ?></b>
                   <small><?= htmlspecialchars((string) ($candidate['name'] ?? '')) ?></small></span>
                 <strong><?= number_format((float) ($candidate['quant_score'] ?? 0), 1) ?></strong>
                 <em><?= number_format(100 * (float) ($signals['momentum_3_1'] ?? 0), 1) ?>% three-month ·
                   <?= number_format(100 * (float) ($signals['relative_spy'] ?? 0), 1) ?>% vs S&amp;P 500
-                  <?= !empty($candidateEntrySignal['advisory']) ? ' · ✦ TECHNICAL BUY SIGNAL' : '' ?></em></div>
+                  <?= !empty($candidateEntrySignal['advisory']) ? ' · ✦ TECHNICAL BUY SIGNAL' : '' ?></em>
+                <?php if (!empty($running[$candidateTicker])): ?>
+                  <button class="momentum-inline-buy locked" type="button" disabled>Active</button>
+                <?php elseif (!empty($queued[$candidateTicker]['APPROVE_BUY'])): ?>
+                  <button class="momentum-inline-buy locked" type="button" disabled>Queued</button>
+                <?php elseif ($slotsFull): ?>
+                  <button class="momentum-inline-buy locked" type="button" disabled>Slots full</button>
+                <?php else: ?>
+                  <button class="momentum-inline-buy buy-choice" type="button"
+                          data-ticker="<?= htmlspecialchars($candidateTicker) ?>"
+                          data-name="<?= htmlspecialchars((string) ($candidate['name'] ?? $candidateTicker)) ?>"
+                          data-decision="QUANTITATIVE POTENTIAL" data-historical="0"
+                          data-analysis-time="<?= htmlspecialchars($analysisMinute) ?>"
+                          data-run-id="<?= htmlspecialchars($candidateRunId) ?>"
+                          data-price="<?= htmlspecialchars((string) ($candidate['price'] ?? '')) ?>">Review buy</button>
+                <?php endif; ?></div>
             <?php endforeach; ?>
           </div>
         </details>
       <?php endif; ?>
       <p class="momentum-watchlist-note"><i></i><span><b>Research list, not a forced recommendation.</b>
-        A potential remains non-buyable until evidence review awards PASS and the final sector,
-        correlation, account-budget, Moomoo price, spread, and market-hours checks succeed.</span></p>
+        Artificial-intelligence PASS/WATCH/VETO is advice. A Paper buy remains your decision, while
+        slot, account-budget, broker truth, Moomoo price, spread, diversification, and market-hours
+        protections are rechecked immediately before any order.</span></p>
     </section>
   <?php endif; ?>
 
